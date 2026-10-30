@@ -3,6 +3,12 @@
 window.heroesPreferences = {
   getItem(key) { try { return localStorage.getItem(key); } catch { return null; } },
   setItem(key, value) { try { localStorage.setItem(key, value); } catch {} },
+  language() {
+    const saved=this.getItem('heroes3.language');
+    if(saved==='ru' || saved==='en')return saved;
+    const preferred=navigator.language || navigator.languages?.[0] || 'en';
+    return /^ru(?:[-_]|$)/i.test(preferred) ? 'ru' : 'en';
+  },
 };
 window.heroesPreflight = (() => {
   async function workerProbe() {

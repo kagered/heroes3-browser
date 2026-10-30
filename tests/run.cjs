@@ -1,5 +1,5 @@
 const {spawnSync}=require('child_process');const fs=require('fs');
-const tests=['test','transfer','preflight','lifecycle','touch','safari-reset','cache','cache-ui','maps','maps-transfer','maps-ui','dialogs','resource-download','retry-launch','userdata-release','feedback','static-fetch'];let failed=0;
+const tests=['language','test','transfer','preflight','lifecycle','touch','safari-reset','cache','cache-ui','maps','maps-transfer','maps-ui','dialogs','resource-download','retry-launch','userdata-release','feedback','static-fetch'];let failed=0;
 for(const name of tests){const result=spawnSync(process.execPath,['tests/'+name+'.cjs'],{encoding:'utf8',timeout:60000,maxBuffer:500000});console.log((result.status===0?'✓ ':'✗ ')+name);if(result.status!==0){failed++;console.error(result.stdout,result.stderr,result.error?.message||'')}}
 const python=process.env.PYTHON||'python3';const build=spawnSync(python,['-m','unittest','discover','-s','tests','-p','test_*.py','-v'],{encoding:'utf8',timeout:60000,maxBuffer:500000});process.stdout.write(build.stdout||'');process.stderr.write(build.stderr||'');if(build.status!==0)failed++;
 for(const name of fs.readdirSync('src').filter(name=>name.endsWith('.js'))){const result=spawnSync(process.execPath,['--check','src/'+name],{encoding:'utf8'});if(result.status!==0){console.error(result.stderr);failed++}}

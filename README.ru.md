@@ -1,6 +1,6 @@
 <p align="center"><img src="docs/assets/banner.svg" alt="Heroes III — игра в браузере" width="1120"></p>
 <p align="center"><a href="https://heroes-iii-browser.pages.dev/"><img src="docs/assets/play-ru.svg" alt="Играть в браузере" width="240" height="50"></a></p>
-<p align="center"><strong>Ещё один ход. Прямо в браузере.</strong><br>v0.2.0 · VCMI 1.6.5 · <a href="README.md">English</a></p>
+<p align="center"><strong>Ещё один ход. Прямо в браузере.</strong><br>v0.2.1 · VCMI 1.6.5 · <a href="README.md">English</a></p>
 
 Браузерная оболочка для **Heroes of Might and Magic III Complete** на основе [VCMI WebAssembly](https://github.com/caiiiycuk/vcmi-wasm/tree/vcmi-wasm-1.6.5). Внутри сохраняются привычные меню и игровой процесс, а снаружи — удобный запуск и управление личными данными.
 
@@ -8,7 +8,7 @@
 
 ## Возможности
 
-- Русский и английский языки с общими сохранениями в одном браузере.
+- Русский и английский с общими сохранениями. При первом посещении выбирается язык браузера: русский → русский, остальные → английский. Ручной выбор запоминается.
 - Мышь и клавиатура или автоматическое сенсорное управление. На iPad используется режим 800 × 600.
 - Экспорт и импорт сейвов в ZIP; отдельный перенос коллекции своих карт.
 - Импорт `.h3m` и ZIP с картами RoE, Armageddon’s Blade и Shadow of Death. Выбор карты — в оригинальном меню игры.

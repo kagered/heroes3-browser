@@ -1,6 +1,6 @@
 <p align="center"><img src="docs/assets/banner.svg" alt="Heroes III — Browser edition" width="1120"></p>
 <p align="center"><a href="https://heroes-iii-browser.pages.dev/"><img src="docs/assets/play.svg" alt="Play Heroes III in your browser" width="240" height="50"></a></p>
-<p align="center"><strong>One more turn. Right in your browser.</strong><br>v0.2.0 · VCMI 1.6.5 · <a href="README.ru.md">Русский</a></p>
+<p align="center"><strong>One more turn. Right in your browser.</strong><br>v0.2.1 · VCMI 1.6.5 · <a href="README.ru.md">Русский</a></p>
 
 A browser launcher for **Heroes of Might and Magic III Complete**, powered by the [VCMI WebAssembly port](https://github.com/caiiiycuk/vcmi-wasm/tree/vcmi-wasm-1.6.5). Keep the original game menus and turn-based experience, with a modern way to launch, manage files and play on a touchscreen.
 
@@ -8,7 +8,7 @@ A browser launcher for **Heroes of Might and Magic III Complete**, powered by th
 
 ## What’s included
 
-- **Russian and English.** Choose before launching; both versions share saves in the same browser.
+- **Russian and English.** Russian browser preferences select Russian on first visit; all other languages select English. Your manual choice is remembered, and both versions share saves in the same browser.
 - **Mouse, keyboard and touch.** Automatic touch controls, hold to inspect, pinch to zoom, and on-screen commands. iPad uses an 800 × 600 rendering profile.
 - **Portable progress.** Export/import saves as ZIP. Back up and transfer your custom map collection separately.
 - **Your maps.** Add `.h3m` files or ZIP collections; find them in the original scenario menu. RoE, Armageddon’s Blade and Shadow of Death formats are supported.

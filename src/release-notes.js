@@ -3,6 +3,13 @@
 (() => {
   const releases = [
     {
+      version:'0.2.1', date:'2026-10-30', engine:'VCMI 1.6.5',
+      title:['Автоматический выбор языка','Automatic language selection'],
+      groups:[{title:['Улучшения','Improvements'],items:[
+        ['При первом посещении русский язык браузера выбирает русскую версию сайта и игры; остальные языки — английскую. Ручной выбор игрока имеет приоритет.','On first visit, a Russian browser language selects Russian for the site and game; all other languages select English. A player’s saved manual choice takes priority.']
+      ]}]
+    },
+    {
       version:'0.2.0', date:'2026-10-30', engine:'VCMI 1.6.5',
       title:['Первый публичный выпуск','First public source release'],
       groups:[{title:['Выпуск','Release'],items:[

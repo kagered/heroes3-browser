@@ -122,7 +122,7 @@ window.applyPageLanguage = language => {
     element.setAttribute('aria-label', element.getAttribute(english ? 'data-en-aria' : 'data-ru-aria'));
   });
 };
-window.applyPageLanguage(window.heroesPreferences.getItem('heroes3.language'));
+window.applyPageLanguage(window.heroesPreferences.language());
 </script>
 <script src="release-notes.js"></script>
 <script src="dialogs.js"></script>

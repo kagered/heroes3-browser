@@ -45,7 +45,7 @@ function finishLoading(failed = false) {
   $('progress').value = failed ? 0 : 100;
 }
 let inventory;
-let gameLanguage = window.heroesPreferences.getItem('heroes3.language') === 'en' ? 'en' : 'ru';
+let gameLanguage = window.heroesPreferences.language();
 const ui = (ru, en) => gameLanguage === 'en' ? en : ru;
 const dataURL = path => '/game-data/' + path + '?lang=' + gameLanguage;
 let engine;
