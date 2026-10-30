@@ -1,0 +1,21 @@
+{
+  "name": "heroes3-browser",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Heroes III browser launcher and static-site tooling",
+  "license": "GPL-2.0-or-later",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node tests/run.cjs",
+    "vendor": "node scripts/vendor.mjs",
+    "check:repository": "python3 scripts/check_repository.py"
+  },
+  "devDependencies": {
+    "fake-indexeddb": "6.2.6",
+    "@noble/hashes": "1.8.0",
+    "fflate": "0.8.3",
+    "esbuild": "0.28.2"
+  }
+}

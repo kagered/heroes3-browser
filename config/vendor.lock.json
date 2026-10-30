@@ -1,0 +1,11 @@
+{
+  "fflate": "0.8.3",
+  "noble-hashes": "1.8.0",
+  "esbuild": "0.28.2",
+  "sha256": {
+    "save-zip.js": "462ef8041fc970e3615a20a9dd2b2e3047a073b2da729ef4f02b634bba8b7b83",
+    "LICENSE-fflate.txt": "0a1df3a083d0c010560aa342e87959c8c1070e6fd54545741f083f22d0c8b551",
+    "asset-sha256.js": "13f7c4fee11a88a038ca2ee5e25783046e4a54d897b8353d7e355082255ded3b",
+    "LICENSE-noble-hashes.txt": "4f221aee6e072336700c408c68ab3b96a3fc09f6aebe6f48f1bd99e5ef13faec"
+  }
+}

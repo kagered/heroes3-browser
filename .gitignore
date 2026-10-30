@@ -1,0 +1,30 @@
+# Generated site and local game resources
+/dist/
+/data/
+/game-assets/
+/local-game.json
+*.lod
+*.snd
+*.h3m
+*.h3c
+*.mp3
+*.vsgm1
+*.vcgm1
+*.zip
+# Downloaded upstream engine artifacts (scripts/fetch_engine.py)
+/src/vendor/vcmiclient.js
+/src/vendor/vcmiclient.wasm
+/src/vendor/vcmi.data
+/src/vendor/vcmi.data.js
+/src/vendor/LICENSE-VCMI.txt
+# Local tools, credentials and editor files
+node_modules/
+__pycache__/
+*.pyc
+.env
+.env.*
+.wrangler/
+.DS_Store
+.idea/
+.vscode/
+/tests/.generated/

@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Heroes III · Returning home</title>
+<style>:root{color-scheme:dark;font:15px system-ui;background:#101113;color:#e7e4dc}body{margin:0;min-height:100svh;display:grid;place-items:center}main{padding:24px;text-align:center}p{color:#96999f;line-height:1.7}a{color:#d6bd8c}h1{font-size:23px;font-weight:500}</style>
+<main><h1>Closing the game…</h1><p>Returning to the homepage.</p><a href="https://heroes-iii-browser.pages.dev/">Continue</a></main>
+<script>
+'use strict';
+// A real document on a different site gives WebKit a process boundary.
+// Destination is fixed: never accept a return URL from query parameters.
+const destination = 'https://heroes-iii-browser.pages.dev/';
+if (new URLSearchParams(location.search).get('lang') === 'ru') {
+  document.documentElement.lang = 'ru';
+  document.querySelector('h1').textContent = 'Завершаем игру…';
+  document.querySelector('p').textContent = 'Возвращаемся на главную страницу.';
+  document.querySelector('a').textContent = 'Продолжить';
+}
+setTimeout(() => location.replace(destination), 600);
+</script>
+</html>

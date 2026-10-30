@@ -1,0 +1,38 @@
+{
+  "engine": "VCMI 1.6.5",
+  "artifact_revision": "55d0af39d301a2c24d98976cff794d87f3695c17",
+  "source_repository": "https://github.com/caiiiycuk/vcmi-wasm",
+  "source_revision": "58b3887253852a6206400b1d7293291701414695",
+  "files": [
+    {
+      "name": "vcmiclient.js",
+      "url": "https://raw.githubusercontent.com/caiiiycuk/vcmi-wasm/55d0af39d301a2c24d98976cff794d87f3695c17/vcmi/vcmiclient.1.6.5-0.js",
+      "sha256": "d5030e1f70003bd4b5e4779298fc288e7effd8c169a3566a72fa6aa4085578c6",
+      "size": 254148
+    },
+    {
+      "name": "vcmiclient.wasm",
+      "url": "https://raw.githubusercontent.com/caiiiycuk/vcmi-wasm/55d0af39d301a2c24d98976cff794d87f3695c17/vcmi/vcmiclient.1.6.5-0.wasm",
+      "sha256": "79fc6206700775aafb4e15e57969792d48241f16879e4ac32cca4e486bb800f1",
+      "size": 9039947
+    },
+    {
+      "name": "vcmi.data",
+      "url": "https://raw.githubusercontent.com/caiiiycuk/vcmi-wasm/55d0af39d301a2c24d98976cff794d87f3695c17/vcmi/vcmi.data.1.6.5",
+      "sha256": "5cf736ddd2e8546d66dfe5f7aa899645098d1ca18de4c272b3fbabbfda0a3872",
+      "size": 7919378
+    },
+    {
+      "name": "vcmi.data.js",
+      "url": "https://raw.githubusercontent.com/caiiiycuk/vcmi-wasm/55d0af39d301a2c24d98976cff794d87f3695c17/vcmi/vcmi.data.1.6.5.js",
+      "sha256": "8b1d546d1eeedfdad0cad7b72a80cce6dfe06ca4063e00477107ec120dfe4f0f",
+      "size": 64017
+    },
+    {
+      "name": "LICENSE-VCMI.txt",
+      "url": "https://raw.githubusercontent.com/caiiiycuk/vcmi-wasm/58b3887253852a6206400b1d7293291701414695/license.txt",
+      "sha256": "2d5ffb759ac6444583842abd4a25745f5d172f63318dc49966f8c9859b4ca849",
+      "size": 15119
+    }
+  ]
+}

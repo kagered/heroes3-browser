@@ -1,0 +1,17 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert');
+const nodes=new Map();let focus;
+const make=()=>({hidden:false,disabled:false,dataset:{},events:{},children:[],attrs:{},addEventListener(k,v){this.events[k]=v},setAttribute(k,v){this.attrs[k]=v},removeAttribute(k){delete this.attrs[k]},click(){this.clicks=(this.clicks||0)+1},append(...items){this.children.push(...items)},replaceChildren(...items){this.children=items},querySelectorAll(){return this.children.flatMap(item=>item.children.filter(child=>child.type==='button'))},focus(){focus=this}});
+const get=id=>{if(!nodes.has(id))nodes.set(id,make());return nodes.get(id)};
+let rows=[],removed=0,imported=0;const window={events:{},addEventListener(k,v){this.events[k]=v},HeroesMaps:{list:async()=>rows,readMaps:async()=>rows,makeArchive:async()=>new Uint8Array([1,2,3]),parseFiles:async files=>files,importRows:async(db,items)=>{imported++;rows=items;return{added:items.length,duplicate:0}},remove:async(db,id)=>{removed++;rows=rows.filter(row=>row.id!==id)}}};
+let revoked=0;const context={window,Blob,URL:{createObjectURL:()=> 'blob:maps',revokeObjectURL(){revoked++}},document:{getElementById:get,createElement:make,documentElement:{lang:'en'}},openDB:async()=>({close(){}})};
+vm.createContext(context);vm.runInContext(fs.readFileSync('src/maps.js','utf8'),context);
+async function idle(){for(let i=0;i<100;i++){await new Promise(resolve=>setImmediate(resolve));if(get('maps-panel').attrs['aria-busy']==='false')return;}throw Error('UI timeout')}
+(async()=>{
+ get('maps-library').open=true;get('maps-library').events.toggle();await idle();assert(get('maps-count').textContent.includes('No custom maps'));
+ get('map-files').files=[{id:'x',name:'<script>.h3m',format:'SoD',dimension:72,bytes:4000}];get('map-files').onchange();let prevented=false;get('start').events.click({preventDefault(){prevented=true},stopImmediatePropagation(){}});assert(prevented);await idle();assert.equal(imported,1);assert(get('maps-status').textContent.includes('Added: 1'));assert.equal(get('maps-status').dataset.state,'success');assert.equal(get('maps-library').open,true);assert.equal(get('maps-list').children[0].children[0].children[0].textContent,'<script>.h3m');
+ await get('maps-export').onclick();await idle();assert.equal(get('maps-download').hidden,false);assert(get('maps-download').download.startsWith('heroes3-maps-'));assert.equal(get('maps-download').clicks,1);window.events.pagehide();assert.equal(revoked,1);assert.equal(get('maps-download').hidden,true);
+ let button=get('maps-list').children[0].children[1];button.onclick();assert(!get('maps-confirmation').hidden);get('maps-cancel').onclick();assert.equal(removed,0);assert(get('maps-confirmation').hidden);
+ context.document.documentElement.lang='ru';button.onclick();assert(get('maps-confirm-text').textContent.includes('Удалить'));get('maps-confirm').onclick();await idle();assert.equal(removed,1);assert(get('maps-count').textContent.includes('пока нет'));assert(get('maps-status').textContent.includes('не изменены'));
+ window.HeroesMaps.parseFiles=async()=>{throw Error('format')};get('map-files').files=[{name:'HotA.h3m'}];get('map-files').onchange();await idle();assert.equal(get('maps-status').dataset.state,'error');assert.equal(get('maps-status').attrs['aria-live'],'assertive');assert(get('maps-status').textContent.includes('Ошибка'));
+ console.log('PASS: RU/EN import/list/remove, confirmation/cancel, literal filenames and launch guard');
+})().catch(error=>{console.error(error);process.exit(1)});

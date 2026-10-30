@@ -1,0 +1,16 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert'),{webcrypto}=require('crypto'),{IDBFactory}=require('fake-indexeddb');const fflate=require('../src/vendor/save-zip.js');
+const app=fs.readFileSync('src/app.js','utf8');
+function profile(){const c={fflate,crypto:webcrypto,indexedDB:new IDBFactory(),setTimeout,clearTimeout,ui:(a,b)=>b,Uint8Array,DataView,Map,Set,console};c.window=c;vm.createContext(c);vm.runInContext('let db;const mounted=new Map();const write=(path,data)=>mounted.set(path,data);'+app.slice(app.indexOf('function openDB()'),app.indexOf('function write(path, data)')),c);for(const name of ['save-transfer-core.js','maps-core.js','cache-core.js'])vm.runInContext(fs.readFileSync('src/'+name,'utf8'),c);return c}
+const file=(name,data)=>({name,size:data.length,arrayBuffer:async()=>Uint8Array.from(data).buffer});const done=tx=>new Promise((resolve,reject)=>{tx.oncomplete=resolve;tx.onabort=()=>reject(tx.error)});
+(async()=>{
+ const source=profile(),target=profile();const a=await vm.runInContext('(async()=>{db=await openDB();return db})()',source);
+ await vm.runInContext("persist('/Saves/Партия.vsgm1',new Uint8Array([1,2,3]))",source);await vm.runInContext("persist('/Saves/Партия.vcgm1',new Uint8Array([4,5,6]))",source);
+ const mapBytes=require('./fixtures.cjs').mapBytes();const rows=await source.window.HeroesMaps.parseFiles([file('Своя карта.h3m',mapBytes)]);await source.window.HeroesMaps.importRows(a,rows);
+ let tx=a.transaction('assets','readwrite');for(const lang of ['ru','en'])tx.objectStore('assets').put(new Uint8Array([9]),lang+':/game-data/'+lang+'/Data/test.lod');await done(tx);
+ const original=await source.window.HeroesSaveTransfer.readSaves(a);for(const lang of ['ru','en','ru']){source.gameLanguage=lang;await vm.runInContext('restore()',source);assert.deepEqual([...vm.runInContext("mounted.get('/Saves/Партия.vsgm1')",source)],[1,2,3]);}
+ await source.window.HeroesCache.clear(a,'all');assert.equal((await source.window.HeroesMaps.list(a)).length,1);assert.equal((await source.window.HeroesSaveTransfer.readSaves(a)).length,2);
+ const saveZIP=source.window.HeroesSaveTransfer.makeArchive(original),mapZIP=await source.window.HeroesMaps.makeArchive(await source.window.HeroesMaps.readMaps(a));const b=await vm.runInContext('(async()=>{db=await openDB();return db})()',target);
+ const imported=await target.window.HeroesSaveTransfer.parseFiles([file('saves.zip',saveZIP)]);await target.window.HeroesSaveTransfer.importRows(b,imported);const importedMaps=await target.window.HeroesMaps.parseFiles([file('maps.zip',mapZIP)]);await target.window.HeroesMaps.importRows(b,importedMaps);
+ await vm.runInContext('restore()',target);assert.deepEqual([...vm.runInContext("mounted.get('/Saves/Партия.vcgm1')",target)],[4,5,6]);const mounted=[];await target.window.HeroesMaps.mount(b,(path,bytes)=>mounted.push({path,bytes}));assert.equal(mounted[0].path,'/Maps/browser-'+rows[0].id+'.h3m');assert.deepEqual([...mounted[0].bytes],[...mapBytes]);
+ a.close();b.close();console.log('PASS: independent browser profiles, shared save bytes across RU/EN, cache clearing, two ZIP transfers, restored save family and stable custom-map path/bytes');
+})().catch(error=>{console.error(error);process.exit(1)});
