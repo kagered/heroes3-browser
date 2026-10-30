@@ -1,7 +1,12 @@
 /* Opens a reviewable GitHub draft. No report is sent automatically. */
 'use strict';
 (() => {
-  const endpoint = 'https://github.com/JevgeniSoonberg/heroes3-browser/issues/new';
+  const endpoint = window.HEROES_FEEDBACK?.reportURL;
+  if (!endpoint) return;
+  try {
+    const url = new URL(endpoint);
+    if (url.protocol !== 'https:') return;
+  } catch { return; }
   function reportURL() {
     const english = document.documentElement.lang === 'en';
     const text = (ru, en) => english ? en : ru;
@@ -29,6 +34,7 @@
     return url.href;
   }
   document.querySelectorAll('[data-report-problem]').forEach(link => {
+    link.hidden = false;
     // Refresh on activation, after a language change or window resize.
     link.addEventListener('click', () => { link.href = reportURL(); });
     link.addEventListener('contextmenu', () => { link.href = reportURL(); });

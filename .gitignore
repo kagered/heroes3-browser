@@ -28,3 +28,6 @@ __pycache__/
 .idea/
 .vscode/
 /tests/.generated/
+
+# Private deployment feedback settings
+/src/feedback-config.local.json

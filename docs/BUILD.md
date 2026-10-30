@@ -86,9 +86,13 @@ The hosted project uses a short, separate helper page to work around Safari reta
 
 The checked-in route is deliberately bound to the project’s exact production origin. For your own host, deploy the helper on a **separate site**, change the production-origin and helper URL in `src/app.js` → `homeDestination()`, and change the helper’s fixed return URL in `support/memory-reset/index.html`. Keep the return URL fixed; do not accept arbitrary destinations from the query string. Preserve the helper’s no-store headers. Localhost and other hosts do not use the project’s helper automatically.
 
-### Fork-specific links
+### Optional feedback destination
 
-When hosting a fork, change the feedback repository in `src/feedback.js` and the fallback report links in `src/index.html`. Update README play links to your address. The checked-in defaults belong to this project.
+Source files contain no default report destination. Report links stay hidden unless configured for a deployment.
+
+To enable them, create `src/feedback-config.local.json` with a `reportURL` property containing your HTTPS GitHub new-issue URL. This local file is excluded by `.gitignore`; do not commit it. The exporter embeds the setting into the generated site, where it is public to visitors. Without this file, exported sites have no report links. The generic draft-building code remains reusable in `src/feedback.js`.
+
+When hosting a fork, update README play links to your address.
 
 ## 5. Update only the client of an existing build
 

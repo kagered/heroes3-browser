@@ -59,6 +59,15 @@ def refresh_client(destination, manifest):
     (destination/'site-data.js').write_text('window.HEROES_STATIC='+json.dumps(manifest,ensure_ascii=False,separators=(',',':'))+';\n')
     index=destination/'index.html'
     index.write_text(index.read_text().replace('<script src="app.js">','<script src="site-data.js"></script>\n<script src="app.js">'))
+    # Deployment-only feedback destination is never checked into the source package.
+    feedback_config=ROOT/'feedback-config.local.json'
+    if feedback_config.exists():
+        settings=json.loads(feedback_config.read_text())
+        endpoint=settings.get('reportURL','')
+        if not isinstance(endpoint,str) or not endpoint.startswith('https://'):
+            raise ValueError('feedback reportURL must be an HTTPS URL')
+        payload=json.dumps({'reportURL':endpoint},ensure_ascii=True).replace('<','\\u003c')
+        index.write_text(index.read_text().replace('<script src="feedback.js"></script>', '<script>window.HEROES_FEEDBACK='+payload+';</script>\n<script src="feedback.js"></script>'))
     app=destination/'app.js';code=app.read_text()
     code=code.replace("'/game-data/' + path + '?lang=' + gameLanguage", "'/game-data/' + gameLanguage + '/' + path")
     code=code.replace("const languages = await (await fetch('/api/languages')).json();", "const languages = {languages:Object.keys(window.HEROES_STATIC.inventories)};")
