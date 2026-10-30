@@ -3,3 +3,4 @@
 *.png binary
 *.wasm binary
 *.data binary
+*.ico binary
