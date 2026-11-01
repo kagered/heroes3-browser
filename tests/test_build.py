@@ -8,6 +8,7 @@ class BuildTests(unittest.TestCase):
   self.temp=tempfile.TemporaryDirectory();self.root=Path(self.temp.name);self.src=self.root/'src';self.src.mkdir();(self.src/'vendor').mkdir()
   for p in (ROOT/'src').glob('*'):
    if p.is_file():shutil.copyfile(p,self.src/p.name)
+  shutil.copytree(ROOT/'src/assets',self.src/'assets')
   for p in (ROOT/'src/vendor').glob('*'):
    if p.name in ['save-zip.js','LICENSE-fflate.txt','asset-sha256.js','LICENSE-noble-hashes.txt']:shutil.copyfile(p,self.src/'vendor'/p.name)
   for name in ['vcmiclient.js','vcmiclient.wasm','vcmi.data','vcmi.data.js','LICENSE-VCMI.txt']:(self.src/'vendor'/name).write_bytes(b'synthetic-engine-fixture')
