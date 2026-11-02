@@ -6,7 +6,7 @@ ROOT=Path(__file__).resolve().parents[1]
 def check():
  output=subprocess.check_output(['git','ls-files','--cached','--others','--exclude-standard','-z'],cwd=ROOT)
  names=sorted(set(x.decode() for x in output.split(b'\0') if x));failures=[]
- forbidden={'.lod','.snd','.h3m','.h3c','.mp3','.vsgm1','.vcgm1','.wasm','.zip','.data','.pyc','.log'}
+ forbidden={'.lod','.snd','.h3m','.h3c','.tut','.mp3','.vsgm1','.vcgm1','.wasm','.zip','.data','.pyc','.log'}
  engine={'src/vendor/vcmiclient.js','src/vendor/vcmiclient.wasm','src/vendor/vcmi.data','src/vendor/vcmi.data.js','src/vendor/LICENSE-VCMI.txt'}
  for name in names:
   path=ROOT/name

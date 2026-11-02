@@ -37,7 +37,7 @@ def export(destination, russian, english):
         return digest.hexdigest()
     for language, folder in games:
         files=[]
-        for sub, extensions in [('Data',{'.lod','.snd'}),('Maps',{'.h3m','.h3c'}),('Mp3',{'.mp3'})]:
+        for sub, extensions in [('Data',{'.lod','.snd'}),('Maps',{'.h3m','.h3c','.tut'}),('Mp3',{'.mp3'})]:
             source_folder=next((p for p in folder.iterdir() if p.is_dir() and p.name.lower()==sub.lower()),folder/sub)
             for source in sorted(source_folder.glob('*')):
                 if source.is_file() and source.suffix.lower() in extensions:

@@ -19,6 +19,11 @@ class BuildTests(unittest.TestCase):
  def manifest(self,out):return json.loads((out/'site-data.js').read_text().removeprefix('window.HEROES_STATIC=').strip().removesuffix(';'))
  def test_english_only_and_required_header(self):
   out=self.root/'english';self.build.export(out,None,self.game);self.assertEqual(list(self.manifest(out)['inventories']),['en']);self.assertIn('languages.languages[0]',(out/'app.js').read_text());self.assertIn('Cross-Origin-Embedder-Policy: require-corp',(out/'_headers').read_text());self.assertFalse((out/'server.py').exists())
+ def test_tutorial_map_is_exported(self):
+  (self.game/'Maps').mkdir();payload=b'synthetic-tutorial-map';(self.game/'Maps'/'Tutorial.tut').write_bytes(payload)
+  out=self.root/'tutorial';self.build.export(out,None,self.game)
+  self.assertEqual((out/'game-data/en/Maps/Tutorial.tut').read_bytes(),payload)
+  self.assertTrue(any(f['path']=='Maps/Tutorial.tut' for f in self.manifest(out)['inventories']['en']['files']))
  def test_russian_and_both(self):
   out=self.root/'ru';self.build.export(out,self.game,None);self.assertEqual(list(self.manifest(out)['inventories']),['ru']);out=self.root/'both';self.build.export(out,self.game,self.game);self.assertEqual(set(self.manifest(out)['inventories']),{'ru','en'})
  def test_deterministic_manifest_and_preserved_inputs(self):
