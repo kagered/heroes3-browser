@@ -32,3 +32,6 @@ __pycache__/
 
 # Private deployment feedback settings
 /src/feedback-config.local.json
+
+# Experimental engine build and toolchain cache
+/.engine-work/

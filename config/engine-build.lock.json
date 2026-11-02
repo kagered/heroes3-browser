@@ -1,0 +1,16 @@
+{
+  "engine": "VCMI 1.6.5",
+  "source_revision": "58b3887253852a6206400b1d7293291701414695",
+  "emscripten": "4.0.23",
+  "build_type": "MinSizeRel",
+  "archives": {
+    "source": {
+      "url": "https://codeload.github.com/caiiiycuk/vcmi-wasm/tar.gz/58b3887253852a6206400b1d7293291701414695",
+      "sha256": "7a994b269d97947359b77250d0bcc67e7d664ee35e2a370708b9f700a07e38a5"
+    },
+    "fuzzylite": {
+      "url": "https://codeload.github.com/fuzzylite/fuzzylite/tar.gz/637da45cd2ba3ad1c3ad63f6f40c4325736ece5f",
+      "sha256": "9b51eb8db2d916ff83a2429745a07b5ff69edf399792f652a445666ab4c83cbc"
+    }
+  }
+}
