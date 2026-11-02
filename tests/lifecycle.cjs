@@ -17,7 +17,7 @@ vm.runInNewContext(fs.readFileSync('src/runtime-lifecycle.js','utf8'),{window:ho
  const second=host.createGameRuntime(canvas);new host.Worker('c');events.get('pagehide')();await second.stop();assert.equal(terminated,3);
  let saveDone,stopDone;const navigation=[];
  const context=vm.createContext({navigator:{userAgent:"Desktop",platform:"MacIntel",maxTouchPoints:0},gameLanguage:"ru",returningHome:false,saveQueue:new Promise(r=>saveDone=r),gameRuntime:{stop:()=>new Promise(r=>stopDone=r)},engine:{},window:{engine:{}},db:{close(){navigation.push('db-close')}},musicFiles:new Map(),loadedMusic:new Set(),setTimeout:fn=>{fn()},location:{replace:url=>navigation.push(url)},log:()=>{}});
- const app=fs.readFileSync('src/app.js','utf8');vm.runInContext(app.slice(app.indexOf('function homeDestination()'),app.indexOf('function connectMenuExit()')),context);
+ const app=fs.readFileSync('src/app.js','utf8');vm.runInContext(app.slice(app.indexOf('function homeDestination()'),app.indexOf('function connectMenuExit(')),context);
  const exiting=vm.runInContext('returnHome()',context);assert.deepEqual(navigation,[]);saveDone();await new Promise(setImmediate);assert.deepEqual(navigation,[]);stopDone({workers:1,audio:1});await exiting;assert.deepEqual(navigation,['db-close','/index.html']);assert.equal(context.engine,undefined);assert.equal(context.window.engine,undefined);
  console.log('PASS: workers, audio, rendering, timers, global restoration, repeated shutdown, pagehide, saves-before-stop-before-navigation');
 })().catch(e=>{console.error(e);process.exitCode=1});

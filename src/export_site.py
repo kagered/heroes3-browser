@@ -105,7 +105,7 @@ async function fetchSiteAsset(url, options={}) {
 }
 '''
     app.write_text(code)
-    (destination/'_headers').write_text('/*\n  Cross-Origin-Opener-Policy: same-origin\n  Cross-Origin-Embedder-Policy: require-corp\n  X-Content-Type-Options: nosniff\n')
+    (destination/'_headers').write_text('/*\n  Cross-Origin-Opener-Policy: same-origin\n  Cross-Origin-Embedder-Policy: require-corp\n  X-Content-Type-Options: nosniff\n/mobile-engine.js\n  Cache-Control: no-store\n/app.js\n  Cache-Control: no-cache, must-revalidate\n')
 
 if __name__=='__main__':
     parser=argparse.ArgumentParser()

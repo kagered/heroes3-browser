@@ -172,7 +172,7 @@ async function returnHome() {
   location.replace(homeDestination());
 }
 
-function connectMenuExit() {
+function connectMenuExit(nativeSettings = false) {
   // VCMI 1.6.5 compiles handleQuit() as a no-op for Emscripten.
   // Its menu supports lazy tabs. A dedicated tab opens our tiny local image;
   // that resource read bridges the real menu button to the browser launcher.
@@ -199,6 +199,7 @@ function connectMenuExit() {
   // The prebuilt WASM also omits html5::quitGame(). Route the in-game
   // exit button through an unused lazy settings tab, using the same FS bridge.
   // Tab 3 is not exposed by this build's settings tab bar (indices 0..2).
+  if (!nativeSettings) {
   const settingsPath = '/config/widgets/settings/settingsMainContainer.json';
   const settingsSource = engine.FS.readFile(settingsPath, {encoding:'utf8'});
   const settingsMenu = JSON.parse(settingsSource.replace(/("(?:\\.|[^"\\])*")|\/\/[^\n]*|\/\*[\s\S]*?\*\//g,
@@ -219,6 +220,7 @@ function connectMenuExit() {
     (match, string) => string || '').replace(/,\s*([}\]])/g, '$1'));
   exitTab.items.push({name:'browserExitBridge',type:'texture',image:'browser-exit.bmp',position:{x:0,y:0}});
   write(exitTabPath, new TextEncoder().encode(JSON.stringify(exitTab)));
+  }
 
 
   const open = engine.FS.open;
@@ -414,7 +416,7 @@ async function start(autoConnect=false) {
     const renderMode = new URLSearchParams(location.search).get('render');
     const compact = !networkMode && (renderMode === 'compact' || (appleTouch && renderMode !== 'standard'));
     const mobileViewport = window.HeroesMobileAdventure?.profile();
-    const enginePrefix = mobileViewport ? "vendor-mobile/" : "vendor/";
+    const enginePrefix = mobileViewport ? (window.HEROES_MOBILE_ENGINE_BASE || "vendor-mobile/") : "vendor/";
     const width = mobileViewport ? Math.max(800,mobileViewport.width) : compact ? 800 : 1024;
     const height = mobileViewport ? Math.max(600,mobileViewport.height) : compact ? 600 : 768;
     $('canvas').width = width;
@@ -500,7 +502,7 @@ async function start(autoConnect=false) {
     loadingStage(3, ui('Возвращаем сохранённые партии и настройки.', 'Restoring saved games and settings.'));
     await restore();
     await window.HeroesMaps.mount(db, write);
-    connectMenuExit();
+    connectMenuExit(!!mobileViewport && !!window.HEROES_MOBILE_NATIVE_SETTINGS);
     const config = new TextEncoder().encode(JSON.stringify({
       general: { language: gameLanguage === 'en' ? 'english' : 'russian', autosaveCountLimit: 3, playerName:name },
       video: { resolution: { width, height, scaling: 100 } },

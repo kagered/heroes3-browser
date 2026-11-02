@@ -92,3 +92,18 @@ The Army section reuses the actual garrison and hero slots, including movement a
 The native town currently requires at least 568 × 280 visible landscape pixels (320 pixels high below 700 pixels wide); recruitment requires at least 532 × 320. Shorter viewports retain the classic window and large dismissal bar. Browser standalone/fullscreen mode may provide additional usable height. Desktop never enters these branches.
 
 The optional mobile loader URL includes its manifest hash, preventing an old cached loader from being paired with a new verified WebAssembly binary.
+
+
+## Native character, kingdom, service and settings windows
+
+A shared original-texture panel supports independent tabs, page controls and viewport reflow without canvas zoom. Market resource slots, tavern hero portraits, hero army slots, skills and artifact places retain their original engine objects and callbacks. Equipment and backpack navigation preserve an artifact held by the cursor. Hero actions retain biography, specialization, quest log and guarded dismissal.
+
+Kingdom overview has paged hero, town, resource and site cards. It refreshes when returning from another window. The detailed classic table remains available for cross-hero operations. Town recruitment now has a separate dark divider and gap above navigation.
+
+Settings wrap the existing translated controls and call the original toggles, sliders and radio groups. Native windows use the engine's real affordability and hiring restrictions. Display resolution, engine scaling and desktop fullscreen options are omitted from the mobile settings; the browser Screen action controls display. The game-actions page retains save, load, restart, menu return and exit. Save/load, construction, guild interiors and advanced non-resource market modes remain classic.
+
+The mobile settings implementation must not receive the legacy lazy-tab exit bitmap: it eagerly creates all settings categories. The original desktop exit bridge remains unchanged. Browser profile exit uses the existing tracked teardown callbacks.
+
+## Immutable mobile engine deployments
+
+The installer writes all four mobile engine files under a content-derived `vendor-mobile/<build>/` directory and puts that base and checksums in `mobile-engine.js`. Earlier directories and legacy root files are retained, so cached launchers cannot mix a previous WebAssembly module with a newly deployed loader. The manifest is served with `Cache-Control: no-store`; the launcher is revalidated. The native-settings capability flag keeps legacy cached builds compatible with their original exit bridge.
