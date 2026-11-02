@@ -4,3 +4,6 @@
 *.wasm binary
 *.data binary
 *.ico binary
+
+# Unified patch context includes leading spaces and empty context lines.
+engine-patches/*.patch -whitespace

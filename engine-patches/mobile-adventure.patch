@@ -148,7 +148,15 @@
  
  #include "CIntObject.h"
  #include "CursorHandler.h"
-@@ -98,6 +101,16 @@
+@@ -20,6 +23,7 @@
+ 
+ #include "../CGameInfo.h"
+ #include "../adventureMap/AdventureMapInterface.h"
++#include "../windows/InfoWindows.h"
+ #include "../render/Colors.h"
+ #include "../render/Graphics.h"
+ #include "../render/IFont.h"
+@@ -98,6 +102,55 @@
  	{
  		boost::mutex::scoped_lock interfaceLock(GH.interfaceMutex);
  
@@ -157,11 +165,75 @@
 +		{
 +			bool active = adventureInt && windows().isTopWindow(adventureInt);
 +			int action = MAIN_THREAD_EM_ASM_INT({ return (Module.mobileActions || []).shift() || 0; });
-+			unsigned enabled = active ? adventureInt->mobileActions(action) : 0;
-+			active = adventureInt && windows().isTopWindow(adventureInt);
-+			MAIN_THREAD_EM_ASM({ Module.mobileAdventureState(!!$0, $1); }, active, enabled);
++			if(active && action)
++			{
++				std::weak_ptr<AdventureMapInterface> owner = adventureInt;
++				dispatchMainThread([owner, action]()
++				{
++					if(auto map = owner.lock(); map && GH.windows().isTopWindow(map))
++						map->mobileActions(action);
++				});
++			}
++			unsigned enabled = active ? adventureInt->mobileActions(0) : 0;
++			// Only map messages/popups keep the native map surface. A dialog on
++			// a hero, town or battle window must retain that window's layout.
++			bool mapOverlay = false;
++			for(const auto & window : windows().findWindows<CIntObject>())
++			{
++				if(window.get() == adventureInt.get()) mapOverlay = true;
++				else if(mapOverlay && !std::dynamic_pointer_cast<CInfoWindow>(window) && !window->isPopupWindow()) mapOverlay = false;
++			}
++			mapOverlay = mapOverlay && !active;
++			Rect mapDialog;
++			if(mapOverlay)
++			{
++				auto top = windows().topWindow<CIntObject>();
++				CIntObject * content = top.get();
++				if(content && content->isPopupWindow() && (content->pos.w <= 0 || content->pos.h <= 0) && !content->children.empty()) content = content->children.front();
++				int width = MAIN_THREAD_EM_ASM_INT({ return Math.min(Module.mobileViewport.width,Math.max(innerWidth,innerHeight)); });
++				int height = MAIN_THREAD_EM_ASM_INT({ return Math.min(Module.mobileViewport.height,Math.min(innerWidth,innerHeight)); });
++				if(content) mapDialog = Rect(content->pos.x - 16, content->pos.y - 16, content->pos.w + 32, content->pos.h + 32);
++				if(!content || content->pos.w + 32 > width || content->pos.h + 144 > height) mapOverlay = false;
++				else
++				{
++					int x = std::clamp(content->pos.x, 16, width - content->pos.w - 16);
++					int y = std::clamp(content->pos.y, 64, height - content->pos.h - 80);
++					Point delta(x - content->pos.x, y - content->pos.y);
++					if(delta != Point(0,0))
++					{
++						content->moveBy(delta);
++						windows().totalRedraw();
++					}
++				}
++			}
++			MAIN_THREAD_EM_ASM({ Module.mobileAdventureState(!!$0, $1, !!$2, $5>0 ? [$3,$4,$5,$6] : null); }, active, enabled, mapOverlay, mapDialog.x, mapDialog.y, mapDialog.w, mapDialog.h);
 +		}
 +#endif
  		if (nullptr != curInt)
  			curInt->update();
  
+--- a/client/adventureMap/AdventureMapShortcuts.cpp
++++ b/client/adventureMap/AdventureMapShortcuts.cpp
+@@ -10,6 +10,9 @@
+ 
+ #include "StdInc.h"
+ #include "AdventureMapShortcuts.h"
++#ifdef VCMI_HTML5_BUILD
++#include <emscripten.h>
++#endif
+ 
+ #include "../CGameInfo.h"
+ #include "../CMT.h"
+@@ -330,6 +333,12 @@
+ 		CGI->generaltexth->allTexts[578],
+ 		[]()
+ 		{
++#ifdef VCMI_HTML5_BUILD
++			if(MAIN_THREAD_EM_ASM_INT({
++				if(Module.mobileAdventureUI && Module.mobileReturnToMenu){Module.mobileReturnToMenu();return 1;}
++				return 0;
++			})) return;
++#endif
+ 			CSH->endGameplay();
+ 			CMM->menu->switchToTab("main");
+ 		},

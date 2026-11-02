@@ -2,8 +2,8 @@ const fs=require('fs'),vm=require('vm'),assert=require('assert/strict');
 const code=fs.readFileSync('src/mobile-adventure.js','utf8');
 function setup({coarse=false,query='',width=844,height=390,manifest=true,language='en',screenSize}={}) {
  const buttons=[],elements=[],classes=new Set();let events=0;
- const game={style:{setProperty(){}},classList:{add(k){classes.add(k)},toggle(k,v){v?classes.add(k):classes.delete(k)}},append(){},addEventListener(){},focus(){}};
- const document={documentElement:{lang:language},getElementById(){return game},createElement(tag){const e={dataset:{},children:[],classList:{toggle(){}},setAttribute(){},append(...children){this.children.push(...children)},prepend(){},addEventListener(){},focus(){},querySelector(){return buttons[0]},querySelectorAll(){return buttons.filter(b=>b.dataset.action)}};elements.push(e);if(tag==='button')buttons.push(e);return e}};
+ const game={width:844,height:600,style:{setProperty(){}},classList:{add(k){classes.add(k)},toggle(k,v){v?classes.add(k):classes.delete(k)}},append(){},addEventListener(){},focus(){}};
+ const document={documentElement:{lang:language},getElementById(){return game},createElement(tag){const e={tagName:tag,getContext:tag==='canvas'?()=>({drawImage(){}}):undefined,toDataURL:()=>"data:image/jpeg;base64,test",dataset:{},children:[],classList:{toggle(){}},setAttribute(){},append(...children){this.children.push(...children)},prepend(){},addEventListener(){},focus(){},querySelector(){return buttons[0]},querySelectorAll(){return buttons.filter(b=>b.dataset.action)}};elements.push(e);if(tag==='button')buttons.push(e);return e}};
  const window={HEROES_MOBILE_ENGINE:manifest?{}:null,dispatchEvent(){events++},addEventListener(){}};
  vm.runInNewContext(code,{window,document,URLSearchParams,location:{search:query},matchMedia:()=>({matches:coarse}),innerWidth:width,innerHeight:height,screen:screenSize,Event:class{}});
  return {ui:window.HeroesMobileAdventure,buttons,elements,classes,events:()=>events};
@@ -43,3 +43,16 @@ moduleOptions.mobileHeroState('Lord Haart',500,1560,false);
 assert.match(hud.children[2].textContent,/Town selected/);
 t.buttons.find(b=>b.dataset.action===13).onclick();
 assert.equal(moduleOptions.mobileActions[0],13,'native Save sends the engine save command');
+
+moduleOptions.mobileAdventureState(false,0,true);
+assert(t.classes.has('mobile-adventure-active'),'small map popup retains the native map surface');
+assert.equal(t.ui.active,false,'map commands remain blocked behind the popup');
+moduleOptions.mobileAdventureState(false,0,false,[100,100,200,200]);
+assert(!t.classes.has('mobile-adventure-active'),'large dialog uses classic fitting');
+moduleOptions.mobileAdventureState(true,0xffff);
+assert(t.classes.has('mobile-adventure-active'));
+
+moduleOptions.mobileAdventureState(true,0xffff);
+moduleOptions.mobileAdventureState(false,0,false,[100,100,200,200]);
+assert(t.elements.filter(e=>e.tagName==='canvas').every(e=>e.width===0 && e.height===0),'temporary snapshot buffers must be released');
+moduleOptions.mobileAdventureState(true,0xffff);

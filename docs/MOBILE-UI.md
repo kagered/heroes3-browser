@@ -65,3 +65,13 @@ The mobile Hero action resolves the current or last selected wandering hero by I
 VCMI publishes the hero's translated name and actual remaining/maximum movement points to the mobile shell. The HUD updates only when values change and distinguishes town selection from exhausted movement. The numeric counter does not shrink with long hero names.
 
 The Menu action opens a native-sized HTML game menu with Resume, Save, Load, Scenario, Kingdom, Settings and Game main menu. Commands use the engine shortcut availability mask. Escape and a keyboard focus loop operate inside the menu. The original save/load, settings, hero and town windows remain classic; this is the first converted game window, not a claim of a fully adapted mobile UI.
+
+## Map overlays and action dispatch
+
+The renderer reads mobile actions but dispatches them through the regular SDL event queue, using a weak adventure-map reference and rechecking the top window before execution. Window creation and end-game actions are no longer invoked as part of rendering.
+
+Small map information windows and right-click popups retain the native map surface. Their content is clamped inside the visible area including frame margins. Buttons behind a modal are disabled, and a window-state notification does not release an existing touch hold. The hold ends on finger-up/cancel or actual focus loss.
+
+Larger map information windows still fit the classic dialog. A temporary map-only backdrop is captured before switching layout, and only the dialog rectangle remains visible from the classic canvas, avoiding the shrunken map underneath it. The temporary capture canvas is immediately released and the backdrop/clip are cleared on return. Information windows opened above a hero, town or battle retain that window's layout.
+
+Confirmed game-menu return avoids the browser build's blocking in-process endGameplay path: after the original confirmation, the mobile callback flushes pending save writes, uses the existing tracked-runtime teardown, and automatically relaunches into the game's title menu. Safari keeps its existing cross-origin memory-reset helper. No party is reloaded automatically. This adds a short cached-engine loading step when returning to the title menu.

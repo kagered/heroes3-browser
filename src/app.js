@@ -148,6 +148,12 @@ function homeDestination() {
   return '/index.html';
 }
 
+function returnToGameMenu() {
+  try { sessionStorage.setItem('heroes3.retryLaunch','1'); } catch {}
+  // Defer teardown until the engine confirmation callback has returned.
+  setTimeout(()=>{void returnHome();},0);
+}
+
 async function returnHome() {
   if (returningHome) return;
   returningHome = true;
@@ -429,7 +435,7 @@ async function start(autoConnect=false) {
       },
       getWidth: () => width, getHeight: () => height,
       gameStarted: () => {finishLoading();$('fullscreen').hidden=typeof $('game').requestFullscreen !== 'function';$('game').append($('fullscreen')); log('Главное меню готово');if(networkMode && autoConnect)void enterNetworkLobby();},
-      mainMenuQuit: returnHome,
+      mainMenuQuit: returnHome, mobileReturnToMenu: returnToGameMenu,
       quitGame: returnHome,
       loadHighscores: (_campaign, callback) => callback(0),
       websocket: { url: networkMode ? `ws://localhost:${networkInfo.port}/relay?host=${encodeURIComponent(host)}&port=${port}&token=${encodeURIComponent(networkInfo.token)}` : 'ws://localhost:8765/no-multiplayer', subprotocol:'binary' },

@@ -26,3 +26,10 @@ assert.equal(c.style.transform,'');
 touch('touchstart',[[100,100],[200,100]]);touch('touchmove',[[100,100],[240,100]]);touch('touchend',[]);
 assert.deepEqual(mapActions,[9]);assert.equal(c.style.transform,'');
 console.log('PASS: native map pinch routes to engine zoom with no canvas transform');
+
+// A window-state notification must not release a held popup.
+c.events=[];touch('touchstart',[[100,100]]);tick(500);
+ctx.window.listeners['mobile-adventure-change']();
+assert.deepEqual(buttons(),[['mousedown',2]],'popup must stay held after its window opens');
+touch('touchend',[]);assert.deepEqual(buttons(),[['mousedown',2],['mouseup',2]]);
+console.log('PASS: popup is held until finger release across a window-state notification');

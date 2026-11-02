@@ -34,7 +34,7 @@
     tools.hidden=!enabled;
   }
   touchDevice.addEventListener('change', event => { enabled=event.matches;configure(); });
-  window.addEventListener("mobile-adventure-change",()=>{release();gesture=null;zoom=1;panX=panY=0;transform();});
+  window.addEventListener("mobile-adventure-change",()=>{if(held===null){clearTimeout(timer);gesture=null;}zoom=1;panX=panY=0;transform();});
   configure();
   const point = touch => ({x:touch.clientX,y:touch.clientY});
   function pair(touches) {
