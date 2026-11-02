@@ -57,3 +57,11 @@ Mobile settings enable left-button dragging and disable cursor-edge scrolling. T
 Classic windows use all space below one 48-pixel bar, with large Back / Close (Escape), Screen and Home controls. Their internal UI is still classic and has not been reflowed; the bar makes dismissal accessible without hitting the small engine close button. Whole-canvas pinch remains disabled throughout the experimental session.
 
 On real touch devices the Play gesture attempts root fullscreen and, where available, landscape orientation lock. Explicit desktop QA does not request fullscreen automatically. Fullscreen/orientation rejection is handled without stopping the game. The Screen button remains available in both map and classic windows. A bilingual fallback explains Safari Share → Add to Home Screen; the web manifest and Apple standalone metadata enable web-app launch without browser tabs. Browsers may still show system UI. No service worker or offline-start promise is introduced.
+
+## Hero identity, movement HUD and native game menu
+
+The mobile Hero action resolves the current or last selected wandering hero by ID against the live hero list. It never opens the selected town through the generic View selected shortcut. Town selects and opens a town directly. Removed heroes are not retained as raw pointers.
+
+VCMI publishes the hero's translated name and actual remaining/maximum movement points to the mobile shell. The HUD updates only when values change and distinguishes town selection from exhausted movement. The numeric counter does not shrink with long hero names.
+
+The Menu action opens a native-sized HTML game menu with Resume, Save, Load, Scenario, Kingdom, Settings and Game main menu. Commands use the engine shortcut availability mask. Escape and a keyboard focus loop operate inside the menu. The original save/load, settings, hero and town windows remain classic; this is the first converted game window, not a claim of a fully adapted mobile UI.

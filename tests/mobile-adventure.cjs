@@ -1,19 +1,19 @@
 const fs=require('fs'),vm=require('vm'),assert=require('assert/strict');
 const code=fs.readFileSync('src/mobile-adventure.js','utf8');
 function setup({coarse=false,query='',width=844,height=390,manifest=true,language='en',screenSize}={}) {
- const buttons=[],classes=new Set();let events=0;
- const game={style:{setProperty(){}},classList:{add(k){classes.add(k)},toggle(k,v){v?classes.add(k):classes.delete(k)}},append(){},addEventListener(){}};
- const document={documentElement:{lang:language},getElementById(){return game},createElement(tag){const e={dataset:{},setAttribute(){},append(...children){},prepend(){},querySelectorAll(){return buttons.filter(b=>b.dataset.action)}};if(tag==='button')buttons.push(e);return e}};
+ const buttons=[],elements=[],classes=new Set();let events=0;
+ const game={style:{setProperty(){}},classList:{add(k){classes.add(k)},toggle(k,v){v?classes.add(k):classes.delete(k)}},append(){},addEventListener(){},focus(){}};
+ const document={documentElement:{lang:language},getElementById(){return game},createElement(tag){const e={dataset:{},children:[],classList:{toggle(){}},setAttribute(){},append(...children){this.children.push(...children)},prepend(){},addEventListener(){},focus(){},querySelector(){return buttons[0]},querySelectorAll(){return buttons.filter(b=>b.dataset.action)}};elements.push(e);if(tag==='button')buttons.push(e);return e}};
  const window={HEROES_MOBILE_ENGINE:manifest?{}:null,dispatchEvent(){events++},addEventListener(){}};
  vm.runInNewContext(code,{window,document,URLSearchParams,location:{search:query},matchMedia:()=>({matches:coarse}),innerWidth:width,innerHeight:height,screen:screenSize,Event:class{}});
- return {ui:window.HeroesMobileAdventure,buttons,classes,events:()=>events};
+ return {ui:window.HeroesMobileAdventure,buttons,elements,classes,events:()=>events};
 }
 assert.equal(setup().ui.profile(),null,'desktop keeps original engine');
 assert.equal(setup({coarse:true,width:390,height:844}).ui.profile().width,844,'portrait starts the same landscape layout');
 assert.equal(setup({coarse:true,query:'?mobile-map=off'}).ui.profile(),null);
 assert.equal(setup({coarse:true,manifest:false}).ui.profile(),null,'source-only export needs no experimental binaries');
 const t=setup({coarse:true});assert.equal(t.ui.profile().width,844);
-const moduleOptions={};t.ui.attach(moduleOptions,t.ui.profile());assert.equal(t.buttons.filter(b=>b.dataset.action).length,12);
+const moduleOptions={};t.ui.attach(moduleOptions,t.ui.profile());assert.equal(new Set(t.buttons.filter(b=>b.dataset.action).map(b=>b.dataset.action)).size,16);
 moduleOptions.mobileAdventureState(true,1|16);assert(t.classes.has('mobile-adventure-active'));assert.equal(t.buttons.find(b=>b.dataset.action===5).disabled,false);assert.equal(t.buttons.find(b=>b.dataset.action===2).disabled,true);
 for(let i=0;i<10;i++)t.ui.send(1);assert.equal(moduleOptions.mobileActions.length,4,'bounded queue');
 moduleOptions.mobileAdventureState(false,0);assert.equal(moduleOptions.mobileActions.length,0);t.ui.send(1);assert.equal(moduleOptions.mobileActions.length,0,'dialogs reject map actions');assert(!t.classes.has('mobile-adventure-active'));
@@ -28,3 +28,18 @@ assert(Math.abs((mapped.y-rect.top)/rect.height*600-90)<0.001);
 console.log('PASS: rotated portrait input maps back to landscape engine coordinates');
 
 assert.equal(setup({coarse:true,width:390,height:745,screenSize:{width:390,height:844}}).ui.profile().width,844,'reserve landscape width when portrait browser bars reduce the viewport');
+
+moduleOptions.mobileAdventureState(true,0xffff);
+moduleOptions.mobileHeroState('Lord Haart',0,1560,true);
+assert.equal(t.buttons.find(b=>b.dataset.action===13).disabled,false,'native save menu follows engine availability');
+t.buttons.find(b=>b.dataset.action===6).onclick();
+assert.equal(moduleOptions.mobileActions.length,0,'opening native menu must not open classic settings');
+console.log('PASS: live movement callback and native pause menu action routing');
+
+const hud=t.elements.find(e=>e.className==='mobile-hero-hud');
+assert.equal(hud.children[0].children[1].textContent,'0 / 1560');
+assert.match(hud.children[2].textContent,/No movement left/);
+moduleOptions.mobileHeroState('Lord Haart',500,1560,false);
+assert.match(hud.children[2].textContent,/Town selected/);
+t.buttons.find(b=>b.dataset.action===13).onclick();
+assert.equal(moduleOptions.mobileActions[0],13,'native Save sends the engine save command');

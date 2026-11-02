@@ -64,7 +64,7 @@
  	CIntObject::showAll(to);
  	dim(to);
  	LOCPLINT->cingconsole->show(to);
-@@ -937,3 +945,30 @@
+@@ -937,3 +945,60 @@
  
  	return spellBeingCasted->getAdventureMechanics().canBeCastAt(problem, LOCPLINT->cb.get(), LOCPLINT->localState->getCurrentHero(), targetPosition);
  }
@@ -72,13 +72,31 @@
 +// Lab-only bridge. The regular shortcut conditions remain authoritative.
 +unsigned AdventureMapInterface::mobileActions(int action)
 +{
++	const auto & heroes = LOCPLINT->localState->getWanderingHeroes();
++	const CGHeroInstance * hero = LOCPLINT->localState->getCurrentHero();
++	bool selectedHero = hero != nullptr;
++	if(hero) mobileLastHero = hero->id.getNum();
++	if(!hero)
++		for(const auto * candidate : heroes)
++			if(candidate->id.getNum() == mobileLastHero) hero = candidate;
++	if(!hero && !heroes.empty()) hero = heroes.front();
++#ifdef VCMI_HTML5_BUILD
++	std::string heroName = hero ? hero->getNameTranslated() : "";
++	int movement = hero ? hero->movementPointsRemaining() : 0;
++	int limit = hero ? hero->movementPointsLimit(hero->boat == nullptr) : 0;
++	MAIN_THREAD_EM_ASM({
++		if(Module.mobileHeroState) Module.mobileHeroState(UTF8ToString($0),$1,$2,!!$3);
++	}, heroName.c_str(), movement, limit, selectedHero);
++#endif
 +	const EShortcut actions[] = {
 +		EShortcut::ADVENTURE_VIEW_SELECTED, EShortcut::ADVENTURE_NEXT_HERO,
 +		EShortcut::ADVENTURE_NEXT_TOWN, EShortcut::ADVENTURE_CAST_SPELL,
 +		EShortcut::ADVENTURE_END_TURN, EShortcut::GLOBAL_OPTIONS,
 +		EShortcut::ADVENTURE_TOGGLE_MAP_LEVEL, EShortcut::ADVENTURE_MOVE_HERO,
 +		EShortcut::ADVENTURE_ZOOM_IN, EShortcut::ADVENTURE_ZOOM_OUT,
-+		EShortcut::ADVENTURE_KINGDOM_OVERVIEW, EShortcut::ADVENTURE_FIRST_HERO
++		EShortcut::ADVENTURE_KINGDOM_OVERVIEW, EShortcut::ADVENTURE_FIRST_HERO,
++		EShortcut::ADVENTURE_SAVE_GAME, EShortcut::ADVENTURE_LOAD_GAME,
++		EShortcut::ADVENTURE_TO_MAIN_MENU, EShortcut::ADVENTURE_VIEW_SCENARIO
 +	};
 +	unsigned enabled = 0;
 +	for(const auto & shortcut : shortcuts->getShortcuts())
@@ -88,20 +106,33 @@
 +				enabled |= 1u << i;
 +				if(action == static_cast<int>(i + 1))
 +				{
-+					if(action == 12 && LOCPLINT->localState->getCurrentHero())
-+						centerOnObject(LOCPLINT->localState->getCurrentHero());
++					if((action == 1 || action == 12) && hero)
++					{
++						LOCPLINT->localState->setSelection(hero);
++						mobileLastHero = hero->id.getNum();
++						if(action == 1) LOCPLINT->openHeroWindow(hero);
++						else centerOnObject(hero);
++					}
++					else if(action == 1 || action == 12) {}
++					else if(action == 3)
++					{
++						shortcut.callback();
++						if(auto town = LOCPLINT->localState->getCurrentTown()) LOCPLINT->openTownWindow(town);
++					}
 +					else shortcut.callback();
 +				}
 +			}
++	if(!hero) enabled &= ~((1u << 0) | (1u << 11));
 +	return enabled;
 +}
 --- a/client/adventureMap/AdventureMapInterface.h
 +++ b/client/adventureMap/AdventureMapInterface.h
-@@ -112,6 +112,7 @@
+@@ -112,6 +112,8 @@
  	void onScreenResize() override;
  
  public:
 +	unsigned mobileActions(int action);
++	int mobileLastHero = -1;
  	AdventureMapInterface();
  
  	void hotkeyAbortCastingMode();

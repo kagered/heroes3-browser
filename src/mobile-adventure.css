@@ -16,3 +16,20 @@
 .mobile-adventure-top button:last-child{margin-left:auto}
 .mobile-display-help{position:absolute;inset:52px 12px 12px;z-index:9;background:#202227;border:1px solid #b89b65;border-radius:10px;padding:18px;max-width:560px;margin:auto;color:#eee;font:16px/1.5 system-ui;overflow:auto}
 .mobile-display-help p{margin:0 0 14px}
+.mobile-hero-hud{flex:1;min-width:100px;max-width:400px;color:#eee5d3;font:600 12px/16px system-ui;padding:0 4px;overflow:hidden}
+.mobile-hero-hud>div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mobile-hero-hud progress{display:block;width:100%;height:5px;appearance:none;border:0;background:#393c40;accent-color:#9ec88c;margin:2px 0}
+.mobile-hero-hud progress::-webkit-progress-bar{background:#393c40;border-radius:3px}
+.mobile-hero-hud progress::-webkit-progress-value{background:#9ec88c;border-radius:3px}
+.mobile-hero-hud.movement-empty{color:#efb179}
+.mobile-hero-hud .mobile-movement-hint{font-size:10px;line-height:12px;font-weight:400}
+.mobile-pause-panel{position:absolute;inset:0;z-index:10;display:grid;grid-template-columns:1fr 1fr;align-content:center;gap:12px;padding:24px max(24px,env(safe-area-inset-right));background:#15171bf7;overflow:auto}
+.mobile-pause-panel h2{grid-column:1/-1;font:600 22px system-ui;color:#e8dcc4;margin:0 0 8px}
+.mobile-pause-panel button{min-height:56px;font-size:17px;text-align:left;padding:12px 18px}
+.mobile-pause-panel button:first-of-type{background:#b89b65;color:#15171b}
+
+.mobile-adventure-top [data-action="11"]{display:none}
+
+.mobile-hero-line{display:flex;gap:8px;align-items:center}
+.mobile-hero-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.mobile-hero-points{flex:none;font-variant-numeric:tabular-nums}
