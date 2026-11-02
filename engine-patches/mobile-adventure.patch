@@ -148,16 +148,17 @@
  
  #include "CIntObject.h"
  #include "CursorHandler.h"
-@@ -20,6 +23,8 @@
+@@ -20,6 +23,9 @@
  
  #include "../CGameInfo.h"
  #include "../adventureMap/AdventureMapInterface.h"
 +#include "../windows/InfoWindows.h"
 +#include "../windows/CMessage.h"
++#include "../windows/CCastleInterface.h"
  #include "../render/Colors.h"
  #include "../render/Graphics.h"
  #include "../render/IFont.h"
-@@ -98,6 +103,38 @@
+@@ -98,6 +104,39 @@
  	{
  		boost::mutex::scoped_lock interfaceLock(GH.interfaceMutex);
  
@@ -182,7 +183,8 @@
 +			{
 +				auto top=windows().topWindow<CIntObject>();CIntObject * content=top.get();
 +				if(content && content->isPopupWindow() && (content->pos.w<=0 || content->pos.h<=0) && !content->children.empty())content=content->children.front();
-+				if(!content || content->pos.w>area.w || content->pos.h>area.h)mapOverlay=false;
++				if(auto town=dynamic_cast<CCastleInterface *>(content);town && town->isMobileDialog()) {town->adaptMobileViewport();}
++                else if(!content || content->pos.w>area.w || content->pos.h>area.h)mapOverlay=false;
 +				else
 +				{
 +					int x=content->isPopupWindow()?std::clamp(content->pos.x,area.x,area.x+area.w-content->pos.w):area.x+(area.w-content->pos.w)/2;
@@ -241,7 +243,7 @@
  
 --- a/client/windows/CMessage.cpp
 +++ b/client/windows/CMessage.cpp
-@@ -10,6 +10,12 @@
+@@ -10,6 +10,13 @@
  
  #include "StdInc.h"
  #include "CMessage.h"
@@ -249,12 +251,13 @@
 +#include <emscripten.h>
 +#endif
 +#include "GUIClasses.h"
++#include "CCastleInterface.h"
 +#include "../adventureMap/AdventureMapInterface.h"
 +#include "../gui/WindowHandler.h"
  
  #include "../gui/CGuiHandler.h"
  #include "../render/CAnimation.h"
-@@ -212,8 +218,72 @@
+@@ -212,8 +219,74 @@
  	return 0;
  }
  
@@ -269,7 +272,9 @@
 +		else if(mapLayer)
 +		{
 +			auto level = std::dynamic_pointer_cast<CLevelWindow>(window);
-+			if(!std::dynamic_pointer_cast<CInfoWindow>(window) && !window->isPopupWindow() && !(level && level->isMobileDialog())) mapLayer = false;
++            auto town = std::dynamic_pointer_cast<CCastleInterface>(window);
++            auto recruit = std::dynamic_pointer_cast<CRecruitmentWindow>(window);
++			if(!std::dynamic_pointer_cast<CInfoWindow>(window) && !window->isPopupWindow() && !(level && level->isMobileDialog()) && !(town && town->isMobileDialog()) && !(recruit && recruit->isMobileDialog())) mapLayer = false;
 +		}
 +	}
 +	if(!mapLayer) return Rect();
@@ -329,7 +334,51 @@
  	// or, if not possible - pick last one and use slider
 --- a/client/windows/GUIClasses.h
 +++ b/client/windows/GUIClasses.h
-@@ -152,9 +152,14 @@
+@@ -51,6 +51,23 @@
+ 
+ enum class EUserEvent;
+ 
++// Native-sized controls shared by the lab town and recruitment layouts.
++class CMobileTownButton : public CIntObject
++{
++ std::shared_ptr<CFilledTexture> texture;
++ std::shared_ptr<CTextBox> label;
++ std::shared_ptr<CAnimImage> creatureIcon;
++ std::function<void()> callback;
++ bool available;
++public:
++ CMobileTownButton(Rect rectangle, const std::string & text, std::function<void()> action, bool enabled = true);
++ void setText(const std::string & text);
++ void setCreatureIcon(int index);
++ void setAvailable(bool enabled);
++ void clickPressed(const Point &) override;
++ void showAll(Canvas & to) override;
++};
++
+ /// Recruitment window where you can recruit creatures
+ class CRecruitmentWindow : public CStatusbarWindow
+ {
+@@ -94,12 +111,19 @@
+ 	std::shared_ptr<CreatureCostBox> costPerTroopValue;
+ 	std::shared_ptr<CreatureCostBox> totalCostValue;
+ 
++ bool mobileLayout = false;
++ std::shared_ptr<CFilledTexture> mobileTexture;
++ std::vector<std::shared_ptr<CMobileTownButton>> mobileButtons;
++ void layoutMobileCards();
+ 	void select(std::shared_ptr<CCreatureCard> card);
+ 	void buy();
+ 	void sliderMoved(int to);
+ 
+ 	void showAll(Canvas & to) override;
+ public:
++	bool isMobileDialog() const { return mobileLayout; }
++ void keyPressed(EShortcut key) override;
++ void onScreenResize() override;
+ 	const CGDwelling * const dwelling;
+ 	CRecruitmentWindow(const CGDwelling * Dwelling, int Level, const CArmedInstance * Dst, const std::function<void(CreatureID,int)> & Recruit, const std::function<void()> & onClose, int y_offset = 0);
+ 	void availableCreaturesChanged();
+@@ -152,9 +176,14 @@
  	std::shared_ptr<CComponentBox> box; //skills to select
  	std::function<void(ui32)> cb;
  
@@ -354,7 +403,114 @@
  
  #include "CCastleInterface.h"
  #include "CCreatureWindow.h"
-@@ -399,12 +400,42 @@
+@@ -63,6 +64,26 @@
+ #include "../lib/CSkillHandler.h"
+ #include "../lib/CSoundBase.h"
+ 
++CMobileTownButton::CMobileTownButton(Rect rectangle, const std::string & text, std::function<void()> action, bool enabled)
++ : CIntObject(LCLICK), callback(std::move(action)), available(enabled)
++{
++ OBJECT_CONSTRUCTION;
++ pos = rectangle + pos.topLeft();
++ texture=std::make_shared<CFilledTexture>(ImagePath::builtin("DiBoxBck"),Rect(0,0,pos.w,pos.h));
++ label=std::make_shared<CTextBox>(text,Rect(8,4,pos.w-16,pos.h-8),0,FONT_MEDIUM,ETextAlignment::CENTER,available?Colors::WHITE:ColorRGBA(120,110,94,255));
++}
++void CMobileTownButton::setText(const std::string & text){if(label->label->getText()!=text)label->setText(text); }
++void CMobileTownButton::setCreatureIcon(int index)
++{
++ if(creatureIcon){creatureIcon->setFrame(index);return;}
++ OBJECT_CONSTRUCTION;
++ creatureIcon=std::make_shared<CAnimImage>(AnimationPath::builtin("CPRSMALL"),index,0,10,(pos.h-32)/2);
++ label->moveTo(Point(pos.x+52,pos.y+4));label->resize(Point(pos.w-60,pos.h-8));
++}
++void CMobileTownButton::setAvailable(bool enabled){if(available==enabled)return;available=enabled;label->label->setColor(enabled?Colors::WHITE:ColorRGBA(120,110,94,255));redraw();}
++void CMobileTownButton::clickPressed(const Point &){if(available && callback) callback();}
++void CMobileTownButton::showAll(Canvas & to){CIntObject::showAll(to);to.drawBorder(pos,available?Colors::METALLIC_GOLD:ColorRGBA(120,110,94,255));}
++
+ CRecruitmentWindow::CCreatureCard::CCreatureCard(CRecruitmentWindow * window, const CCreature * crea, int totalAmount)
+ 	: CIntObject(LCLICK | SHOW_POPUP),
+ 	parent(window),
+@@ -188,7 +209,8 @@
+ 
+ void CRecruitmentWindow::showAll(Canvas & to)
+ {
+-	CWindowObject::showAll(to);
++ CWindowObject::showAll(to);
++ if(mobileLayout){CMessage::drawBorder(LOCPLINT->playerID,to,pos.w+28,pos.h+29,pos.x-14,pos.y-15);return;}
+ 
+ 	Rect(172, 222, 67, 42) + pos.topLeft();
+ 
+@@ -207,7 +229,7 @@
+ }
+ 
+ CRecruitmentWindow::CRecruitmentWindow(const CGDwelling * Dwelling, int Level, const CArmedInstance * Dst, const std::function<void(CreatureID,int)> & Recruit, const std::function<void()> & onClose, int y_offset):
+-	CWindowObject(PLAYER_COLORED, ImagePath::builtin("TPRCRT")),
++	CWindowObject(PLAYER_COLORED | (CMessage::mobileDialogArea().w>0?SHADOW_DISABLED:0), ImagePath::builtin("TPRCRT")),
+ 	onRecruit(Recruit),
+ 	onClose(onClose),
+ 	level(Level),
+@@ -237,7 +259,51 @@
+ 	availableTitle = std::make_shared<CLabel>(205, 233, FONT_SMALL, ETextAlignment::CENTER, Colors::WHITE, CGI->generaltexth->allTexts[465]);
+ 	toRecruitTitle = std::make_shared<CLabel>(279, 233, FONT_SMALL, ETextAlignment::CENTER, Colors::WHITE, CGI->generaltexth->allTexts[16]);
+ 
+-	availableCreaturesChanged();
++ const Rect area=CMessage::mobileDialogArea();
++ if(Level>=0 && area.w>=500 && area.h>=240)
++ {
++  mobileLayout=true;addUsedEvents(KEYBOARD);
++  for(auto child:children)child->disable();
++  removeChild(background.get());background.reset();
++  moveTo(Point(0,0));pos=Rect(0,0,std::min(700,area.w),std::min(260,area.h));
++  mobileTexture=std::make_shared<CFilledTexture>(ImagePath::builtin("DiBoxBck"),Rect(0,0,pos.w,pos.h));
++  std::rotate(children.begin(),std::find(children.begin(),children.end(),mobileTexture.get()),children.end());
++  title->enable();title->moveTo(Point(pos.w/2,18));
++  int right=pos.w-264;
++  availableTitle->enable();availableTitle->moveTo(Point(right+62,40));
++  toRecruitTitle->enable();toRecruitTitle->moveTo(Point(right+190,40));
++  availableValue->enable();availableValue->moveTo(Point(right+62,60));
++  toRecruitValue->enable();toRecruitValue->moveTo(Point(right+190,60));
++  costPerTroopValue->enable();costPerTroopValue->moveTo(Point(right+6,70));
++  totalCostValue->enable();totalCostValue->moveTo(Point(right+138,70));
++  slider=std::make_shared<CSlider>(Point(right+60,pos.h-88),136,std::bind(&CRecruitmentWindow::sliderMoved,this,_1),0,0,0,Orientation::HORIZONTAL);
++  slider->pos.h=40;
++  mobileButtons.push_back(std::make_shared<CMobileTownButton>(Rect(right+6,pos.h-104,44,44),"−",[this](){slider->scrollBy(-1);}));
++  mobileButtons.push_back(std::make_shared<CMobileTownButton>(Rect(right+208,pos.h-104,44,44),"+",[this](){slider->scrollBy(1);}));
++  const int bw=(pos.w-48)/3;
++  mobileButtons.push_back(std::make_shared<CMobileTownButton>(Rect(12,pos.h-58,bw,46),CGI->generaltexth->zelp[553].first,[this](){slider->scrollToMax();}));
++  mobileButtons.push_back(std::make_shared<CMobileTownButton>(Rect(24+bw,pos.h-58,bw,46),CGI->generaltexth->zelp[554].first,[this](){if(selected && slider->getValue()>0 && LOCPLINT->makingTurn)buy();}));
++  mobileButtons.push_back(std::make_shared<CMobileTownButton>(Rect(36+2*bw,pos.h-58,bw,46),CGI->generaltexth->zelp[555].first,[this](){close();}));
++  moveTo(Point(area.x+(area.w-pos.w)/2,area.y+(area.h-pos.h)/2));
++ }
++ availableCreaturesChanged();
++}
++
++void CRecruitmentWindow::keyPressed(EShortcut key)
++{
++ if(mobileLayout && (key==EShortcut::GLOBAL_CANCEL || key==EShortcut::GLOBAL_RETURN)){close();return;}
++ CStatusbarWindow::keyPressed(key);
++}
++void CRecruitmentWindow::onScreenResize()
++{
++ if(!mobileLayout){CStatusbarWindow::onScreenResize();return;}
++ const Rect area=CMessage::mobileDialogArea();if(area.w>0)moveTo(Point(area.x+(area.w-pos.w)/2,area.y+(area.h-pos.h)/2));
++}
++void CRecruitmentWindow::layoutMobileCards()
++{
++ if(!mobileLayout)return;
++ int x=pos.x+16+std::max(0,(pos.w-288-int(cards.size())*110)/2);
++ for(auto & card:cards){card->moveTo(Point(x,pos.y+46));x+=110;}
+ }
+ 
+ void CRecruitmentWindow::availableCreaturesChanged()
+@@ -291,6 +357,7 @@
+ 		curx += totalCreatureWidth;
+ 	}
+ 
++	layoutMobileCards();
+ 	//restore selection
+ 	select(cards[selectedIndex]);
+ 
+@@ -399,12 +466,42 @@
  }
  
  CLevelWindow::CLevelWindow(const CGHeroInstance * hero, PrimarySkill pskill, std::vector<SecondarySkill> & skills, std::function<void(ui32)> callback)
@@ -398,7 +554,7 @@
  
  	if(!skills.empty())
  	{
-@@ -438,6 +469,12 @@
+@@ -438,6 +535,12 @@
  	skillIcon = std::make_shared<CAnimImage>(AnimationPath::builtin("PSKIL42"), static_cast<int>(pskill), 0, 174, 190);
  
  	skillValue = std::make_shared<CLabel>(192, 253, FONT_MEDIUM, ETextAlignment::CENTER, Colors::WHITE, CGI->generaltexth->primarySkillNames[static_cast<int>(pskill)] + " +1");
@@ -411,3 +567,216 @@
  }
  
  void CLevelWindow::close()
+--- a/client/windows/CCastleInterface.h
++++ b/client/windows/CCastleInterface.h
+@@ -24,6 +24,8 @@
+ VCMI_LIB_NAMESPACE_END
+ 
+ class CButton;
++class CMobileTownButton;
++class CFilledTexture;
+ class CCastleBuildings;
+ class CCreaturePic;
+ class CGStatusBar;
+@@ -242,6 +244,23 @@
+ 	std::vector<std::shared_ptr<CCreaInfo>> creainfo;//small icons of creatures (bottom-left corner);
+ 
+ public:
++ bool mobileLayout=false;
++ bool mobileResizeQueued=false;
++ void adaptMobileViewport();
++ int mobilePage=0;
++ std::vector<std::shared_ptr<CIntObject>> mobileControls;
++ std::vector<std::shared_ptr<CIntObject>> mobilePages;
++ std::vector<std::shared_ptr<CMobileTownButton>> mobileCreatureButtons;
++ std::vector<std::shared_ptr<CMobileTownButton>> mobileActionButtons;
++ std::shared_ptr<CFilledTexture> mobileTexture;
++ std::shared_ptr<CLabel> mobileGold;
++ void setupMobile();
++ void setMobilePage(int page);
++ void refreshMobile();
++ bool isMobileDialog() const {return mobileLayout;}
++ void showAll(Canvas & to) override;
++ void show(Canvas & to) override;
++ void onScreenResize() override;
+ 	std::shared_ptr<CTownList> townlist;
+ 
+ 	//TODO: move to private
+--- a/client/windows/CCastleInterface.cpp
++++ b/client/windows/CCastleInterface.cpp
+@@ -14,6 +14,10 @@
+ #include "CMarketWindow.h"
+ #include "InfoWindows.h"
+ #include "GUIClasses.h"
++#include "CMessage.h"
++#ifdef VCMI_HTML5_BUILD
++#include <emscripten.h>
++#endif
+ #include "QuickRecruitmentWindow.h"
+ #include "CCreatureWindow.h"
+ 
+@@ -1325,8 +1329,139 @@
+ 	}
+ }
+ 
++namespace
++{
++std::string mobileTownText(const char * ru,const char * en)
++{
++#ifdef VCMI_HTML5_BUILD
++ return MAIN_THREAD_EM_ASM_INT({return document.documentElement.lang==='en'?1:0;})?en:ru;
++#else
++ return en;
++#endif
++}
++class CMobileTownPanorama : public CIntObject
++{
++ std::shared_ptr<CCastleBuildings> buildings;
++ Canvas buffer;
++public:
++ CMobileTownPanorama(Rect rect,std::shared_ptr<CCastleBuildings> source):CIntObject(LCLICK|SHOW_POPUP|TIME),buildings(source),buffer(Point(source->pos.w,source->pos.h),CanvasScalingPolicy::AUTO)
++ {pos=rect+pos.topLeft();}
++ void tick(uint32_t ms) override {for(auto child:buildings->children)if(auto building=dynamic_cast<CBuildingRect *>(child))building->tick(ms);redraw();}
++ void showAll(Canvas & to) override {buildings->showAll(buffer);to.drawScaled(buffer,pos.topLeft(),Point(pos.w,pos.h));to.drawBorder(pos,Colors::METALLIC_GOLD);}
++ void show(Canvas & to) override {showAll(to);}
++ CBuildingRect * hit(const Point & point){Point mapped((point.x-pos.x)*buildings->pos.w/pos.w,(point.y-pos.y)*buildings->pos.h/pos.h);for(auto it=buildings->children.rbegin();it!=buildings->children.rend();++it)if(auto b=dynamic_cast<CBuildingRect *>(*it);b && b->getBuilding() && b->receiveEvent(mapped,LCLICK))return b;return nullptr;}
++ void clickPressed(const Point & p) override {if(auto b=hit(p))buildings->buildingClicked(b->getBuilding()->bid);}
++ void showPopupWindow(const Point & p) override {if(auto b=hit(p))b->showPopupWindow(p);}
++};
++}
++
++void CCastleInterface::setupMobile()
++{
++ const Rect area=CMessage::mobileDialogArea();
++ if(area.w<536 || area.h<200 || (area.w+32<700 && area.h<240))return;
++ mobileLayout=true;
++ for(auto child:children)child->disable();
++ removeChild(builds.get());builds->moveTo(Point(0,0));
++ pos=Rect(0,48,area.w+32,area.h+32);
++ OBJECT_CONSTRUCTION;
++ mobileTexture=std::make_shared<CFilledTexture>(ImagePath::builtin("DiBoxBck"),Rect(0,0,pos.w,pos.h));
++ auto name=std::make_shared<CLabel>(16,16,FONT_MEDIUM,ETextAlignment::TOPLEFT,Colors::YELLOW,town->getNameTranslated());
++ // Keep new widgets alive independently from the legacy controls.
++ mobilePages.push_back(std::make_shared<CIntObject>());
++ mobilePages.push_back(std::make_shared<CIntObject>());
++ mobilePages.push_back(std::make_shared<CIntObject>());
++ mobileGold=std::make_shared<CLabel>(pos.w-16,16,FONT_MEDIUM,ETextAlignment::TOPRIGHT);
++ // The title is retained as a member; it replaces the hidden desktop title.
++ title=name;title->setMaxWidth(pos.w/2-90);
++ mobileGold->font=FONT_SMALL;mobileGold->setMaxWidth(pos.w/2-90);
++ if(LOCPLINT->localState->getOwnedTowns().size()>1)mobileControls.push_back(std::make_shared<CMobileTownButton>(Rect(pos.w/2-60,0,120,44),mobileTownText("Другой город","Next town"),[this](){auto count=LOCPLINT->localState->getOwnedTowns().size();if(count>1)townlist->select(LOCPLINT->localState->getOwnedTown((townlist->getSelectedIndex()+1)%count));},LOCPLINT->localState->getOwnedTowns().size()>1));
++ int navWidth=(pos.w-40)/3;
++ const std::array<std::string,3> tabs={mobileTownText("Город","Town"),mobileTownText("Нанять","Recruit"),mobileTownText("Армия","Army")};
++ for(int i=0;i<3;++i){auto button=std::make_shared<CMobileTownButton>(Rect(10+i*(navWidth+10),pos.h-54,navWidth,44),tabs[i],[this,i](){setMobilePage(i);}); mobileControls.push_back(button);}
++ {
++  ObjectConstruction page(mobilePages[0].get());
++  int contentH=pos.h-106, rows=std::clamp(contentH/50,2,4), columns=(4+rows-1)/rows;
++  int actionWidth=columns==1?156:120, sideWidth=columns*(actionWidth+8)+12, availableW=pos.w-sideWidth-24;
++  double scale=std::min(double(availableW)/builds->pos.w,double(contentH)/builds->pos.h);
++  int w=int(builds->pos.w*scale),h=int(builds->pos.h*scale);
++  mobileControls.push_back(std::make_shared<CMobileTownPanorama>(Rect(12+(availableW-w)/2,42+(contentH-h)/2,w,h),builds));
++  const std::array<std::string,4> labels={mobileTownText("Строить","Build"),mobileTownText("Рынок","Market"),mobileTownText("Гильдия магов","Mage guild"),mobileTownText("Таверна","Tavern")};
++  for(int i=0;i<4;++i){auto action=[this,i](){if(i==0)builds->enterTownHall();if(i==1)builds->enterAnyMarket();if(i==2 && town->hasBuilt(BuildingID::MAGES_GUILD_1))builds->enterMagesGuild();if(i==3 && town->hasBuilt(BuildingID::TAVERN))LOCPLINT->showTavernWindow(town,nullptr,QueryID::NONE);};bool enabled=i==0 || (i==1 && town->hasBuilt(BuildingID::MARKETPLACE)) || (i==2 && town->hasBuilt(BuildingID::MAGES_GUILD_1)) || (i==3 && town->hasBuilt(BuildingID::TAVERN));mobileActionButtons.push_back(std::make_shared<CMobileTownButton>(Rect(pos.w-sideWidth+(i/rows)*(actionWidth+8),46+(i%rows)*50,actionWidth,44),labels[i],action,enabled));}
++ }
++ {
++  ObjectConstruction page(mobilePages[1].get());
++  const int levels=std::min<int>(8,town->getTown()->creatures.size());
++  int columns=pos.w<700?2:4, rows=(levels+columns-1)/columns, gap=columns==2?0:4;
++  int cw=(pos.w-24-8*(columns-1))/columns, ch=(pos.h-96-gap*(rows-1))/rows;
++  for(int i=0;i<std::min<int>(8,town->getTown()->creatures.size());++i){bool exists=i<town->creatures.size() && !town->creatures[i].second.empty();auto button=std::make_shared<CMobileTownButton>(Rect(12+(i%columns)*(cw+8),42+(i/columns)*(ch+gap),cw,ch),"",[this,i](){builds->enterDwelling(i);},exists);auto creature=(exists?town->creatures[i].second.back():town->getTown()->creatures[i].back()).toCreature();button->setCreatureIcon(creature->getIconIndex());mobileCreatureButtons.push_back(button);}
++ }
++ {
++  ObjectConstruction page(mobilePages[2].get());
++  // Real garrison slots and hero slots retain their original exchange callbacks.
++  removeChild(garr.get());removeChild(heroes.get());
++  mobilePages[2]->addChild(garr.get());mobilePages[2]->addChild(heroes.get());
++  const bool compactArmy=pos.h<272;
++  const int armyY=compactArmy?48:64, armyGap=compactArmy?66:80;
++  garr->garOffset=Point(0,armyGap);garr->recreateSlots();
++  garr->moveTo(Point(pos.x+(pos.w-430)/2,pos.y+armyY));
++  for(auto child:garr->children)if(auto slot=dynamic_cast<CGarrisonSlot *>(child);slot && slot->getGarrison()==EGarrisonType::LOWER)slot->moveBy(Point(0,armyGap-96));
++  heroes->garrisonedHero->moveTo(Point(garr->pos.x-66,garr->pos.y));
++  heroes->visitingHero->moveTo(Point(garr->pos.x-66,garr->pos.y+armyGap));
++  garr->enable();heroes->enable();
++  for(auto & split:garr->splitButtons){split->moveTo(Point(pos.x+pos.w-56,pos.y+armyY));split->pos.h=44;}
++
++  if(!compactArmy)mobileControls.push_back(std::make_shared<CLabel>(garr->pos.x-pos.x,42,FONT_MEDIUM,ETextAlignment::TOPLEFT,Colors::YELLOW,mobileTownText("Гарнизон","Garrison")));
++  if(!compactArmy)mobileControls.push_back(std::make_shared<CLabel>(garr->pos.x-pos.x,122,FONT_MEDIUM,ETextAlignment::TOPLEFT,Colors::YELLOW,mobileTownText("Гость","Visiting hero")));
++ }
++ refreshMobile();setMobilePage(0);
++}
++void CCastleInterface::adaptMobileViewport()
++{
++ if(!mobileLayout || mobileResizeQueued)return;
++ const Rect area=CMessage::mobileDialogArea();
++ if(area.w<=0 || (pos.w==area.w+32 && pos.h==area.h+32))return;
++ mobileResizeQueued=true;
++ std::weak_ptr<CCastleInterface> owner=GH.windows().topWindow<CCastleInterface>();
++ GH.dispatchMainThread([owner]()
++ {
++  auto previous=owner.lock();
++  if(!previous)return;
++  if(!GH.windows().isTopWindow(previous)){previous->mobileResizeQueued=false;return;}
++  const auto town=previous->town;
++  const int page=previous->mobilePage;
++  previous->close();
++  auto replacement=std::make_shared<CCastleInterface>(town,town);
++  replacement->setMobilePage(page);
++  GH.windows().pushWindow(replacement);
++ });
++}
++
++void CCastleInterface::setMobilePage(int page)
++{
++ if(!mobileLayout)return;
++ mobilePage=page;
++ for(int i=0;i<mobilePages.size();++i)mobilePages[i]->setEnabled(i==page);
++ GH.windows().totalRedraw();
++}
++void CCastleInterface::refreshMobile()
++{
++ if(!mobileLayout)return;
++ const std::string gold=mobileTownText("Золото: ","Gold: ")+std::to_string(LOCPLINT->cb->getResourceAmount()[EGameResID::GOLD])+"  (+"+std::to_string(town->dailyIncome()[EGameResID::GOLD])+")";
++ if(mobileGold->getText()!=gold)mobileGold->setText(gold);
++ const std::array<bool,4> enabled={true,town->hasBuilt(BuildingID::MARKETPLACE),town->hasBuilt(BuildingID::MAGES_GUILD_1),town->hasBuilt(BuildingID::TAVERN)};
++ for(int i=0;i<mobileActionButtons.size();++i)mobileActionButtons[i]->setAvailable(enabled[i]);
++ for(int i=0;i<mobileCreatureButtons.size();++i){std::string text=town->getTown()->creatures[i].back().toCreature()->getNamePluralTranslated()+"\n"+mobileTownText("Не построено","Not built");if(i<town->creatures.size() && !town->creatures[i].second.empty()){auto creature=town->creatures[i].second.back().toCreature();text=creature->getNamePluralTranslated()+"\n"+mobileTownText("Доступно: ","Available: ")+std::to_string(town->creatures[i].first);}mobileCreatureButtons[i]->setText(text);bool exists=i<town->creatures.size() && !town->creatures[i].second.empty();mobileCreatureButtons[i]->setAvailable(exists);if(exists)mobileCreatureButtons[i]->setCreatureIcon(town->creatures[i].second.back().toCreature()->getIconIndex());}
++}
++void CCastleInterface::showAll(Canvas & to)
++{
++ CWindowObject::showAll(to);
++ if(mobileLayout && mobilePage==2)for(auto child:garr->children)if(auto slot=dynamic_cast<CGarrisonSlot *>(child))to.drawBorder(slot->pos,Colors::METALLIC_GOLD);
++}
++void CCastleInterface::onScreenResize(){if(mobileLayout)moveTo(Point(0,48));else CWindowObject::onScreenResize();}
++void CCastleInterface::show(Canvas & to){if(mobileLayout){refreshMobile();showAll(to);}else CWindowObject::show(to);}
++
+ CCastleInterface::CCastleInterface(const CGTownInstance * Town, const CGTownInstance * from):
+-	CWindowObject(PLAYER_COLORED | BORDERED),
++	CWindowObject(PLAYER_COLORED | (CMessage::mobileDialogArea().w>0?SHADOW_DISABLED:BORDERED)),
+ 	town(Town)
+ {
+ 	OBJECT_CONSTRUCTION;
+@@ -1372,6 +1507,7 @@
+ 	townlist->onSelect = std::bind(&CCastleInterface::townChange, this);
+ 
+ 	recreateIcons();
++	setupMobile();
+ 	if (!from)
+ 		adventureInt->onAudioPaused();
+ 	CCS->musich->playMusicFromSet("faction", town->getFaction()->getJsonKey(), true, false);
+@@ -1457,6 +1593,7 @@
+ 
+ void CCastleInterface::recreateIcons()
+ {
++ if(mobileLayout){refreshMobile();return;}
+ 	OBJECT_CONSTRUCTION;
+ 	size_t iconIndex = town->getTown()->clientInfo.icons[town->hasFort()][town->built >= LOCPLINT->cb->getSettings().getInteger(EGameSettings::TOWNS_BUILDINGS_PER_TURN_CAP)];
+ 
+@@ -1499,6 +1636,7 @@
+ 
+ void CCastleInterface::keyPressed(EShortcut key)
+ {
++ if(mobileLayout && (key==EShortcut::GLOBAL_CANCEL || key==EShortcut::GLOBAL_RETURN)){close();return;}
+ 	switch(key)
+ 	{
+ 	case EShortcut::MOVE_UP:

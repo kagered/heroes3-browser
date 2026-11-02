@@ -459,7 +459,10 @@ async function start(autoConnect=false) {
     if(mobileViewport) {
       window.HeroesMobileAdventure.attach(options,mobileViewport);
       await new Promise((resolve,reject) => {
-        const script=document.createElement('script');script.src=enginePrefix+'vcmiclient.js';
+        // Pin the loader to the same build as the verified wasm binary.
+        const loader=enginePrefix+'vcmiclient.js';
+        const loaderHash=window.HEROES_MOBILE_ENGINE?.[loader]?.hash;
+        const script=document.createElement('script');script.src=loader+(loaderHash?'?v='+encodeURIComponent(loaderHash):'');
         script.onload=resolve;script.onerror=()=>reject(new Error('Mobile engine unavailable'));document.head.append(script);
       });
     }

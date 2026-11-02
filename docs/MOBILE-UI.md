@@ -6,7 +6,7 @@ Work only on `lab`; the stable site and desktop engine artifacts remain unchange
 
 - No page zoom or whole-canvas zoom required to read or operate the mobile UI.
 - Map zoom may change the world view independently of controls.
-- First target: landscape phone adventure map; towns, hero windows and battles remain a later phase.
+- Landscape phone map, town overview, army and individual-dwelling recruitment are adapted. Hero, kingdom, save/load, construction and other town subwindows remain a later phase.
 - Preserve the desktop layout and controls. Do not replace `src/vendor` or publish a rebuilt engine globally as a mobile experiment.
 
 ## Engine baseline
@@ -77,3 +77,18 @@ Map information, reward, choice and confirmation dialogs now lay out inside the 
 Hero level-up dialogs use a compact horizontal layout with the original portrait, primary-skill icon and secondary-skill components. Selection and confirmation retain the engine callbacks. Desktop constructors retain their original layout. Hero, town, save/load and battle windows are not yet converted.
 
 Confirmed game-menu return avoids the browser build's blocking in-process endGameplay path: after the original confirmation, the mobile callback flushes pending save writes, uses the existing tracked-runtime teardown, and automatically relaunches into the game's title menu. Safari keeps its existing cross-origin memory-reset helper. No party is reloaded automatically. This adds a short cached-engine loading step when returning to the title menu.
+
+
+## Town and recruitment prototype
+
+The optional engine reflows the town into Town, Recruit and Army sections. Only the illustrated panorama is scaled; controls, troop slots and text retain independent native sizes. Building hit tests map panorama coordinates back to the original building masks. Building animations use the engine timer and the offscreen panorama buffer belongs to the town widget.
+
+Town actions call the original building handlers. Construction, market, guild and tavern subwindows remain classic and return to the adapted town. The recruit list shows the original creature portraits, translated names and live availability, including dwellings not yet built. Updated buildings refresh their action availability. A Next town control appears when more than one town is owned.
+
+On narrow screens recruitment cards use two columns. Town viewport changes rebuild the town window through the event queue, preserving the selected section and game state.
+
+The Army section reuses the actual garrison and hero slots, including movement and splitting callbacks. Individual-dwelling recruitment keeps the original resource prices, affordability checks and recruit callback. It lays out creature choices beside quantity and costs, with large increment/decrement, Maximum, Recruit and Cancel controls. The quantity slider remains available. Empty purchases do nothing. Back / Close dismisses both native windows.
+
+The native town currently requires at least 568 × 280 visible landscape pixels (320 pixels high below 700 pixels wide); recruitment requires at least 532 × 320. Shorter viewports retain the classic window and large dismissal bar. Browser standalone/fullscreen mode may provide additional usable height. Desktop never enters these branches.
+
+The optional mobile loader URL includes its manifest hash, preventing an old cached loader from being paired with a new verified WebAssembly binary.
