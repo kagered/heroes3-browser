@@ -52,7 +52,4 @@ assert(!t.classes.has('mobile-adventure-active'),'large dialog uses classic fitt
 moduleOptions.mobileAdventureState(true,0xffff);
 assert(t.classes.has('mobile-adventure-active'));
 
-moduleOptions.mobileAdventureState(true,0xffff);
-moduleOptions.mobileAdventureState(false,0,false,[100,100,200,200]);
-assert(t.elements.filter(e=>e.tagName==='canvas').every(e=>e.width===0 && e.height===0),'temporary snapshot buffers must be released');
-moduleOptions.mobileAdventureState(true,0xffff);
+assert.equal(t.elements.filter(e=>e.tagName==='canvas').length,0,'native modals do not allocate snapshot canvases');

@@ -4,7 +4,7 @@
   const force = new URLSearchParams(location.search).get('mobile-map');
   const touchDevice=matchMedia('(any-pointer: coarse)').matches;
   const eligible = force !== 'off' && (force === '1' || touchDevice);
-  let module, panel, mapTop, dialogTop, bottom, screenHelp, active=false, mapOverlay=false, session=false, initialized=false, lastMask=-1, heroHud, heroLabel, heroName, heroPoints, heroMeter, heroHint, pausePanel, pauseOpen=false, lastHeroKey="", dialogBackground=false;
+  let module, panel, mapTop, dialogTop, bottom, screenHelp, active=false, mapOverlay=false, session=false, initialized=false, lastMask=-1, heroHud, heroLabel, heroName, heroPoints, heroMeter, heroHint, pausePanel, pauseOpen=false, lastHeroKey="";
   const en = () => document.documentElement.lang === 'en';
   const text = (ru,english) => en()?english:ru;
   const actions = [[12,'К герою','Center hero'],[11,'Королевство','Kingdom'],[7,'Уровень','Layer'],[9,'+','+'],[10,'−','−'],[1,'Герой','Hero'],[2,'Следующий','Next hero'],[3,'Город','Town'],[8,'Двигаться','Move'],[4,'Магия','Spells'],[5,'Конец хода','End turn'],[6,'Меню','Menu']];
@@ -63,37 +63,13 @@
     if(open)pausePanel.querySelector('button')?.focus({preventScroll:true});
     else document.getElementById('canvas').focus({preventScroll:true});
   }
-  function dialogBackdrop(bounds, overlay) {
-    const canvas=document.getElementById('canvas'),game=document.getElementById('game');
-    const needsBackdrop=!!bounds && !overlay;
-    if(!needsBackdrop && !dialogBackground)return;
-    if(needsBackdrop && !dialogBackground && active){
-      const snapshot=document.createElement('canvas');
-      try {
-        snapshot.width=Math.min(canvas.width,module.mobileViewport.width);
-        snapshot.height=Math.max(1,Math.min(canvas.height,module.mobileViewport.height)-112);
-        const context=snapshot.getContext?.('2d');
-        if(context){
-          context.drawImage(canvas,0,48,snapshot.width,snapshot.height,0,0,snapshot.width,snapshot.height);
-          game.style.backgroundImage=`url("${snapshot.toDataURL('image/jpeg',0.85)}")`;
-          game.style.backgroundSize=`${snapshot.width}px ${snapshot.height}px`;
-        }
-      } catch {} finally {snapshot.width=0;snapshot.height=0;}
-    }
-    dialogBackground=needsBackdrop;
-    if(needsBackdrop){
-      const [x,y,w,h]=bounds,cw=canvas.width,ch=canvas.height;
-      canvas.style.clipPath=`inset(${Math.max(0,y)/ch*100}% ${Math.max(0,cw-x-w)/cw*100}% ${Math.max(0,ch-y-h)/ch*100}% ${Math.max(0,x)/cw*100}%)`;
-    } else {canvas.style.clipPath='';game.style.backgroundImage='';game.style.backgroundSize='';}
-  }
-  function state(value,mask,overlay=false,bounds=null) {
+  function state(value,mask,overlay=false) {
     if(!panel)return;
-    dialogBackdrop(bounds,overlay);
     if(!initialized || active!==value || mapOverlay!==overlay) {
       initialized=true;active=value;mapOverlay=overlay;
       const game=document.getElementById('game');game.classList.toggle('mobile-adventure-active',active || mapOverlay);
       game.scrollTop=0;game.scrollLeft=0;
-      mapTop.hidden=!active;bottom.hidden=!(active || mapOverlay);dialogTop.hidden=active;
+      mapTop.hidden=!active;bottom.hidden=!active;dialogTop.hidden=active;
       if(!active){module.mobileActions.length=0;togglePause(false);}
       window.dispatchEvent(new Event('mobile-adventure-change'));
     }

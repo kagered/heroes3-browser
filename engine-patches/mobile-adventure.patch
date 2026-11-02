@@ -33,7 +33,7 @@
 +		map["area"]["left"].Float() = 0;
 +		map["area"]["top"].Float() = 48;
 +		map["area"]["width"].Float() = MAIN_THREAD_EM_ASM_INT({ return Module.mobileViewport.width; });
-+		map["area"]["height"].Float() = MAIN_THREAD_EM_ASM_INT({ return Module.mobileViewport.height - 112; });
++		map["area"]["height"].Float() = MAIN_THREAD_EM_ASM_INT({ return Module.mobileViewport.height - 48; });
 +		config["items"].Vector() = {hidden, map};
 +	}
 +#endif
@@ -148,15 +148,16 @@
  
  #include "CIntObject.h"
  #include "CursorHandler.h"
-@@ -20,6 +23,7 @@
+@@ -20,6 +23,8 @@
  
  #include "../CGameInfo.h"
  #include "../adventureMap/AdventureMapInterface.h"
 +#include "../windows/InfoWindows.h"
++#include "../windows/CMessage.h"
  #include "../render/Colors.h"
  #include "../render/Graphics.h"
  #include "../render/IFont.h"
-@@ -98,6 +102,55 @@
+@@ -98,6 +103,38 @@
  	{
  		boost::mutex::scoped_lock interfaceLock(GH.interfaceMutex);
  
@@ -175,38 +176,21 @@
 +				});
 +			}
 +			unsigned enabled = active ? adventureInt->mobileActions(0) : 0;
-+			// Only map messages/popups keep the native map surface. A dialog on
-+			// a hero, town or battle window must retain that window's layout.
-+			bool mapOverlay = false;
-+			for(const auto & window : windows().findWindows<CIntObject>())
-+			{
-+				if(window.get() == adventureInt.get()) mapOverlay = true;
-+				else if(mapOverlay && !std::dynamic_pointer_cast<CInfoWindow>(window) && !window->isPopupWindow()) mapOverlay = false;
-+			}
-+			mapOverlay = mapOverlay && !active;
-+			Rect mapDialog;
++			const Rect area=CMessage::mobileDialogArea();
++			bool mapOverlay=!active && area.w>0;
 +			if(mapOverlay)
 +			{
-+				auto top = windows().topWindow<CIntObject>();
-+				CIntObject * content = top.get();
-+				if(content && content->isPopupWindow() && (content->pos.w <= 0 || content->pos.h <= 0) && !content->children.empty()) content = content->children.front();
-+				int width = MAIN_THREAD_EM_ASM_INT({ return Math.min(Module.mobileViewport.width,Math.max(innerWidth,innerHeight)); });
-+				int height = MAIN_THREAD_EM_ASM_INT({ return Math.min(Module.mobileViewport.height,Math.min(innerWidth,innerHeight)); });
-+				if(content) mapDialog = Rect(content->pos.x - 16, content->pos.y - 16, content->pos.w + 32, content->pos.h + 32);
-+				if(!content || content->pos.w + 32 > width || content->pos.h + 144 > height) mapOverlay = false;
++				auto top=windows().topWindow<CIntObject>();CIntObject * content=top.get();
++				if(content && content->isPopupWindow() && (content->pos.w<=0 || content->pos.h<=0) && !content->children.empty())content=content->children.front();
++				if(!content || content->pos.w>area.w || content->pos.h>area.h)mapOverlay=false;
 +				else
 +				{
-+					int x = std::clamp(content->pos.x, 16, width - content->pos.w - 16);
-+					int y = std::clamp(content->pos.y, 64, height - content->pos.h - 80);
-+					Point delta(x - content->pos.x, y - content->pos.y);
-+					if(delta != Point(0,0))
-+					{
-+						content->moveBy(delta);
-+						windows().totalRedraw();
-+					}
++					int x=content->isPopupWindow()?std::clamp(content->pos.x,area.x,area.x+area.w-content->pos.w):area.x+(area.w-content->pos.w)/2;
++					int y=content->isPopupWindow()?std::clamp(content->pos.y,area.y,area.y+area.h-content->pos.h):area.y+(area.h-content->pos.h)/2;
++					Point delta(x-content->pos.x,y-content->pos.y);if(delta!=Point(0,0)){content->moveBy(delta);windows().totalRedraw();}
 +				}
 +			}
-+			MAIN_THREAD_EM_ASM({ Module.mobileAdventureState(!!$0, $1, !!$2, $5>0 ? [$3,$4,$5,$6] : null); }, active, enabled, mapOverlay, mapDialog.x, mapDialog.y, mapDialog.w, mapDialog.h);
++			MAIN_THREAD_EM_ASM({Module.mobileAdventureState(!!$0,$1,!!$2);},active,enabled,mapOverlay);
 +		}
 +#endif
  		if (nullptr != curInt)
@@ -237,3 +221,193 @@
  			CSH->endGameplay();
  			CMM->menu->switchToTab("main");
  		},
+--- a/client/windows/CMessage.h
++++ b/client/windows/CMessage.h
+@@ -10,6 +10,7 @@
+ #pragma once
+ 
+ #include "../render/EFont.h"
++#include "../../lib/Rect.h"
+ #include "../../lib/GameConstants.h"
+ 
+ struct SDL_Surface;
+@@ -28,6 +29,7 @@
+ 	static SDL_Surface * drawDialogBox(int w, int h, PlayerColor playerColor = PlayerColor(1));
+ 
+ public:
++	static Rect mobileDialogArea();
+ 	/// Draw border on exiting surface
+ 	static void drawBorder(PlayerColor playerColor, Canvas & to, int w, int h, int x, int y);
+ 
+--- a/client/windows/CMessage.cpp
++++ b/client/windows/CMessage.cpp
+@@ -10,6 +10,12 @@
+ 
+ #include "StdInc.h"
+ #include "CMessage.h"
++#ifdef VCMI_HTML5_BUILD
++#include <emscripten.h>
++#endif
++#include "GUIClasses.h"
++#include "../adventureMap/AdventureMapInterface.h"
++#include "../gui/WindowHandler.h"
+ 
+ #include "../gui/CGuiHandler.h"
+ #include "../render/CAnimation.h"
+@@ -212,8 +218,72 @@
+ 	return 0;
+ }
+ 
++Rect CMessage::mobileDialogArea()
++{
++#ifdef VCMI_HTML5_BUILD
++	if(!MAIN_THREAD_EM_ASM_INT({return Module.mobileAdventureUI ? 1 : 0;})) return Rect();
++	bool mapLayer = false;
++	for(const auto & window : GH.windows().findWindows<CIntObject>())
++	{
++		if(window.get() == adventureInt.get()) mapLayer = true;
++		else if(mapLayer)
++		{
++			auto level = std::dynamic_pointer_cast<CLevelWindow>(window);
++			if(!std::dynamic_pointer_cast<CInfoWindow>(window) && !window->isPopupWindow() && !(level && level->isMobileDialog())) mapLayer = false;
++		}
++	}
++	if(!mapLayer) return Rect();
++	int w = MAIN_THREAD_EM_ASM_INT({return Math.min(Module.mobileViewport.width,Math.max(innerWidth,innerHeight));});
++	int h = MAIN_THREAD_EM_ASM_INT({return Math.min(Module.mobileViewport.height,Math.min(innerWidth,innerHeight));});
++	return Rect(16,64,std::max(200,w-32),std::max(120,h-80));
++#else
++	return Rect();
++#endif
++}
++
+ void CMessage::drawIWindow(CInfoWindow * ret, std::string text, PlayerColor player)
+ {
++	const Rect mobileArea = mobileDialogArea();
++	if(mobileArea.w > 0)
++	{
++		int buttonHeight = ret->buttons.empty() ? 0 : 44;
++		int buttonWidth = 0;
++		for(const auto & button : ret->buttons)
++		{
++			int extra = std::max(0,44-button->pos.h);
++			for(auto * child : button->children) child->moveBy(Point(0,extra/2));
++			button->pos.h += extra;
++			buttonWidth += button->pos.w + 24;
++		}
++		if(buttonWidth) buttonWidth -= 24;
++		bool sideBySide = ret->components && mobileArea.w >= 460 && ret->components->pos.w + 240 <= mobileArea.w;
++		int width = std::min(mobileArea.w, sideBySide ? std::max(480,ret->components->pos.w+280) : 360);
++		width = std::max(width,buttonWidth+32);
++		int componentHeight = ret->components ? ret->components->pos.h : 0;
++		int textWidth = width-32-(sideBySide ? ret->components->pos.w+20 : 0);
++		int reserved = 32 + (buttonHeight ? buttonHeight+12 : 0) + (!sideBySide && componentHeight ? componentHeight+12 : 0);
++		int textBudget = std::max(32,mobileArea.h-reserved);
++		ret->text->resize(Point(textWidth,textBudget));
++		ret->text->trimToFit();
++		if(ret->buttons.empty() && !ret->components) width=std::min(width,ret->text->pos.w+32);
++		int contentHeight = sideBySide ? std::max(ret->text->pos.h,componentHeight) : ret->text->pos.h+(componentHeight ? componentHeight+12 : 0);
++		int height = std::min(mobileArea.h,32+contentHeight+(buttonHeight ? buttonHeight+12 : 0));
++		ret->pos = Rect(0,0,width,height);
++		ret->text->moveTo(Point(16,16+(sideBySide ? std::max(0,(contentHeight-ret->text->pos.h)/2) : 0)));
++		if(ret->text->slider) ret->text->slider->addUsedEvents(CIntObject::WHEEL | CIntObject::KEYBOARD);
++		if(ret->components)
++			ret->components->moveTo(sideBySide ? Point(width-16-ret->components->pos.w,16+std::max(0,(contentHeight-componentHeight)/2)) : Point((width-ret->components->pos.w)/2,28+ret->text->pos.h));
++		int x=(width-buttonWidth)/2;
++		for(const auto & button : ret->buttons)
++		{
++			button->moveTo(Point(x,height-16-buttonHeight));
++			x += button->pos.w+24;
++		}
++		ret->backgroundTexture->pos=ret->pos;
++		ret->moveTo(Point(mobileArea.x+(mobileArea.w-width)/2,mobileArea.y+(mobileArea.h-height)/2));
++		return;
++	}
++
+ 	// possible sizes of text boxes section of window
+ 	// game should pick smallest one that can fit text without slider
+ 	// or, if not possible - pick last one and use slider
+--- a/client/windows/GUIClasses.h
++++ b/client/windows/GUIClasses.h
+@@ -152,9 +152,14 @@
+ 	std::shared_ptr<CComponentBox> box; //skills to select
+ 	std::function<void(ui32)> cb;
+ 
++	bool mobileDialogLayout = false;
++	std::shared_ptr<CFilledTexture> mobileTexture;
++	std::shared_ptr<CTextBox> mobileTitle, mobileSubtitle;
+ 	void selectionChanged(unsigned to);
+ 
+ public:
++	bool isMobileDialog() const { return mobileDialogLayout; }
++	void showAll(Canvas & to) override;
+ 	CLevelWindow(const CGHeroInstance *hero, PrimarySkill pskill, std::vector<SecondarySkill> &skills, std::function<void(ui32)> callback);
+ 
+ 	void close() override;
+--- a/client/windows/GUIClasses.cpp
++++ b/client/windows/GUIClasses.cpp
+@@ -9,6 +9,7 @@
+  */
+ #include "StdInc.h"
+ #include "GUIClasses.h"
++#include "CMessage.h"
+ 
+ #include "CCastleInterface.h"
+ #include "CCreatureWindow.h"
+@@ -399,12 +400,42 @@
+ }
+ 
+ CLevelWindow::CLevelWindow(const CGHeroInstance * hero, PrimarySkill pskill, std::vector<SecondarySkill> & skills, std::function<void(ui32)> callback)
+-	: CWindowObject(PLAYER_COLORED, ImagePath::builtin("LVLUPBKG")),
++	: CWindowObject(PLAYER_COLORED | (CMessage::mobileDialogArea().w>0 ? SHADOW_DISABLED : 0), ImagePath::builtin("LVLUPBKG")),
+ 	cb(callback)
+ {
+ 	OBJECT_CONSTRUCTION;
+ 
+ 	LOCPLINT->showingDialog->setBusy();
++
++	const Rect area = CMessage::mobileDialogArea();
++	if(area.w >= 460 && area.h >= 200)
++	{
++		mobileDialogLayout=true;
++		removeChild(background.get());background.reset();
++		pos=Rect(0,0,std::min(620,area.w),std::min(248,area.h));
++		mobileTexture=std::make_shared<CFilledTexture>(ImagePath::builtin("DiBoxBck"),pos);
++		mobileTitle=std::make_shared<CTextBox>(boost::str(boost::format(CGI->generaltexth->allTexts[444]) % hero->getNameTranslated()),Rect(16,12,pos.w-32,28),0,FONT_MEDIUM,ETextAlignment::CENTER,Colors::WHITE);
++		portrait=std::make_shared<CHeroArea>(36,52,hero);portrait->addClickCallback(nullptr);
++		skillIcon=std::make_shared<CAnimImage>(AnimationPath::builtin("PSKIL42"),static_cast<int>(pskill),0,126,54);
++		skillValue=std::make_shared<CLabel>(120,124,FONT_MEDIUM,ETextAlignment::CENTER,Colors::WHITE,CGI->generaltexth->primarySkillNames[static_cast<int>(pskill)]+" +1");
++		std::string subtitle=CGI->generaltexth->translate("core.genrltxt.445");
++		boost::replace_first(subtitle,"%s",hero->getNameTranslated());boost::replace_first(subtitle,"%d",std::to_string(hero->level));boost::replace_first(subtitle,"%s",hero->getClassNameTranslated());
++		mobileSubtitle=std::make_shared<CTextBox>(subtitle,Rect(16,146,208,44),0,FONT_MEDIUM,ETextAlignment::CENTER,Colors::WHITE);
++		if(!skills.empty())
++		{
++			std::vector<std::shared_ptr<CSelectableComponent>> comps;
++			for(auto skill : skills)
++			{
++				auto comp=std::make_shared<CSelectableComponent>(ComponentType::SEC_SKILL,skill,hero->getSecSkillLevel(skill)+1,CComponent::medium);
++				comp->onChoose=std::bind(&CLevelWindow::close,this);comps.push_back(comp);
++			}
++			box=std::make_shared<CComponentBox>(comps,Rect(248,56,pos.w-272,100));
++		}
++		ok=std::make_shared<CButton>(Point(pos.w-80,pos.h-56),AnimationPath::builtin("IOKAY"),CButton::tooltip(),std::bind(&CLevelWindow::close,this),EShortcut::GLOBAL_ACCEPT);
++		int extra=std::max(0,44-ok->pos.h);for(auto * child : ok->children)child->moveBy(Point(0,extra/2));ok->pos.h+=extra;ok->setBorderColor(Colors::METALLIC_GOLD);
++		moveTo(Point(area.x+(area.w-pos.w)/2,area.y+(area.h-pos.h)/2));
++		return;
++	}
+ 
+ 	if(!skills.empty())
+ 	{
+@@ -438,6 +469,12 @@
+ 	skillIcon = std::make_shared<CAnimImage>(AnimationPath::builtin("PSKIL42"), static_cast<int>(pskill), 0, 174, 190);
+ 
+ 	skillValue = std::make_shared<CLabel>(192, 253, FONT_MEDIUM, ETextAlignment::CENTER, Colors::WHITE, CGI->generaltexth->primarySkillNames[static_cast<int>(pskill)] + " +1");
++}
++
++void CLevelWindow::showAll(Canvas & to)
++{
++	CWindowObject::showAll(to);
++	if(mobileDialogLayout)CMessage::drawBorder(LOCPLINT->playerID,to,pos.w+28,pos.h+29,pos.x-14,pos.y-15);
+ }
+ 
+ void CLevelWindow::close()
