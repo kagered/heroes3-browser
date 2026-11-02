@@ -143,8 +143,8 @@ function homeDestination() {
     (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   // Older Safari can retain shared WASM memory despite terminating workers.
   // A separate, committed cross-site document is used only on the public site.
-  if (appleTouch && location.origin === 'https://heroes-iii-browser.pages.dev')
-    return 'https://heroes-iii-memory-reset.pages.dev/?lang=' + gameLanguage;
+  if (appleTouch && location.origin === 'https://heroes-iii-lab.pages.dev')
+    return 'https://heroes-iii-lab-reset.pages.dev/?lang=' + gameLanguage;
   return '/index.html';
 }
 
