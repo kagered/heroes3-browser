@@ -17,3 +17,12 @@ touch('touchstart',[[100,100]]);tick(500);touch('touchcancel',[]);assert.deepEqu
 elements['touch-menu'].onclick();tick(60);assert.deepEqual(c.events.map(e=>[e.type,e.keyCode]),[['keydown',79],['keyup',79]]);c.events=[];
 changePointer({matches:false});touch('touchstart',[[100,100]]);touch('touchend',[]);tick(500);assert.equal(c.events.length,0);
 console.log('PASS: tap, hold/right-click, drag, pinch cancels drag, zoom, cancellation releases button, menu keyboard, disabled mode');
+
+// The lab map routes pinch to the engine and cannot scale its controls.
+changePointer({matches:true});const mapActions=[];
+ctx.window.HeroesMobileAdventure={active:true,send:id=>mapActions.push(id)};
+ctx.window.listeners['mobile-adventure-change']();
+assert.equal(c.style.transform,'');
+touch('touchstart',[[100,100],[200,100]]);touch('touchmove',[[100,100],[240,100]]);touch('touchend',[]);
+assert.deepEqual(mapActions,[9]);assert.equal(c.style.transform,'');
+console.log('PASS: native map pinch routes to engine zoom with no canvas transform');

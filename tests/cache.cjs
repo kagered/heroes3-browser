@@ -1,6 +1,8 @@
 const fs=require('fs'),vm=require('vm'),assert=require('assert');
 const {indexedDB}=require('fake-indexeddb');
 const context={window:{},Map,Object,Promise,Number};vm.runInNewContext(fs.readFileSync('src/cache-core.js','utf8'),context);const api=context.window.HeroesCache;
+context.window.HEROES_MOBILE_ENGINE={'vendor-mobile/vcmiclient.wasm':{size:123}};
+assert.equal(api.catalog({}).get('engine-1.6.5:vendor-mobile/vcmiclient.wasm'),123);
 const inventories={ru:{files:[{path:'Data/test.lod',size:10,version:'ru-hash'},{path:'Mp3/theme.mp3',size:4,version:'ignored-hash'}]},en:{files:[{path:'Data/test.lod',size:20,version:'en-hash'}]}};
 const entries=[['ru-hash:/game-data/ru/Data/test.lod',10],['en-hash:/game-data/en/Data/test.lod',20],['ru-hash:/game-data/Data/test.lod?lang=ru',10],['en-hash:/game-data/Data/test.lod?lang=en',20],['engine-1.6.5:/game-data/ru/Mp3/theme.mp3',4],['old:/game-data/ru/Data/old.lod',3],['engine-1.6.5:vendor/vcmi.data',1],['unknown-resource',2]];
 const open=()=>new Promise((resolve,reject)=>{const r=indexedDB.open('cache-tests',1);r.onupgradeneeded=()=>{for(const name of ['assets','files','migrations'])r.result.createObjectStore(name)};r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)});

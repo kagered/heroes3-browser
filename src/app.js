@@ -354,7 +354,7 @@ const engineAssets = {"vendor/vcmi.data":{"size":7919378,"hash":"5cf736ddd2e8546
 function fetchAsset(url,options) { return fetch(url,options); }
 async function fetchBytes(url,version='engine-1.6.5',onProgress) {
   const file=inventory?.files.find(file=>dataURL(file.path)===url);
-  const metadata=file?{size:file.size,hash:/^[a-f0-9]{64}$/.test(file.version)?file.version:undefined}:engineAssets[url]||{};
+  const metadata=file?{size:file.size,hash:/^[a-f0-9]{64}$/.test(file.version)?file.version:undefined}:(window.HEROES_MOBILE_ENGINE?.[url] || engineAssets[url])||{};
   try {
     return await window.HeroesDownloads.load({database:db,url,key:version+':'+url,...metadata,fetchResource:fetchAsset,onProgress,
       onState:event=>{
@@ -406,14 +406,16 @@ async function start(autoConnect=false) {
     // One-variable rendering experiment. ?render=standard restores the old size.
     const renderMode = new URLSearchParams(location.search).get('render');
     const compact = !networkMode && (renderMode === 'compact' || (appleTouch && renderMode !== 'standard'));
-    const width = compact ? 800 : 1024;
-    const height = compact ? 600 : 768;
+    const mobileViewport = window.HeroesMobileAdventure?.profile();
+    const enginePrefix = mobileViewport ? "vendor-mobile/" : "vendor/";
+    const width = mobileViewport ? Math.max(800,mobileViewport.width) : compact ? 800 : 1024;
+    const height = mobileViewport ? Math.max(600,mobileViewport.height) : compact ? 600 : 768;
     $('canvas').width = width;
     $('canvas').height = height;
     log(`Render profile: ${width}x${height}`);
     const options = {
       canvas: $('canvas'), noInitialRun: true,
-      locateFile: path => 'vendor/' + path,
+      locateFile: path => enginePrefix + path,
       print: log, printErr: log,
       onAbort: reason => { finishLoading(true); $('game').style.display = 'none'; $('launcher').hidden = false; status(ui('Движок остановился: ', 'The engine stopped: ') + reason); log(reason); },
       fsRead: path => engine.FS.readFile(path),
@@ -447,13 +449,20 @@ async function start(autoConnect=false) {
       options.wasmMemory = new WebAssembly.Memory({initial:8192, maximum:16384, shared:true});
     }
     gameRuntime = window.createGameRuntime($('canvas'));
-    options.wasmBinary = await fetchBytes('vendor/vcmiclient.wasm');
+    if(mobileViewport) {
+      window.HeroesMobileAdventure.attach(options,mobileViewport);
+      await new Promise((resolve,reject) => {
+        const script=document.createElement('script');script.src=enginePrefix+'vcmiclient.js';
+        script.onload=resolve;script.onerror=()=>reject(new Error('Mobile engine unavailable'));document.head.append(script);
+      });
+    }
+    options.wasmBinary = await fetchBytes(enginePrefix+'vcmiclient.wasm');
     engine = await VCMI(options);
     window.engine = engine;
     $('load-detail').textContent = ui('Подключаем основные ресурсы движка.', 'Preparing the engine’s core resources.');
-    const pack = await fetchBytes('vendor/vcmi.data');
+    const pack = await fetchBytes(enginePrefix+'vcmi.data');
     engine.getPreloadedPackage = () => pack.buffer;
-    const packageScript = new TextDecoder().decode(await fetchBytes('vendor/vcmi.data.js'));
+    const packageScript = new TextDecoder().decode(await fetchBytes(enginePrefix+'vcmi.data.js'));
     new Function('Module', packageScript)(engine);
     engine.getPreloadedPackage = undefined;
     // The package's filesystem loader runs synchronously after getPreloadedPackage.

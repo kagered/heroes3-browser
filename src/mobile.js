@@ -18,6 +18,7 @@
     if (held !== null) { mouse('mouseup', point || gesture?.last || {x:0,y:0}, held); held=null; }
   }
   function transform() {
+    if(window.HeroesMobileAdventure?.active){canvas.style.transform="";return;}
     const maxX = canvas.clientWidth * (zoom-1)/2;
     const maxY = canvas.clientHeight * (zoom-1)/2;
     panX = Math.max(-maxX,Math.min(maxX,panX));
@@ -32,6 +33,7 @@
     tools.hidden=!enabled;
   }
   touchDevice.addEventListener('change', event => { enabled=event.matches;configure(); });
+  window.addEventListener("mobile-adventure-change",()=>{release();gesture=null;zoom=1;panX=panY=0;transform();});
   configure();
   const point = touch => ({x:touch.clientX,y:touch.clientY});
   function pair(touches) {
@@ -60,6 +62,11 @@
     if(event.touches.length>1){
       if(gesture?.type!=='multi')multi(event.touches);
       const center=pair(event.touches);
+      if(window.HeroesMobileAdventure?.active){
+        const ratio=center.distance/Math.max(1,gesture.center.distance);
+        if(ratio>1.18 || ratio<0.85){window.HeroesMobileAdventure.send(ratio>1?9:10);gesture.center=center;}
+        return;
+      }
       zoom=Math.max(1,Math.min(3,gesture.zoom*center.distance/Math.max(1,gesture.center.distance)));
       panX=gesture.panX+center.x-gesture.center.x;panY=gesture.panY+center.y-gesture.center.y;transform();return;
     }

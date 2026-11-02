@@ -32,3 +32,20 @@ The pinned source built successfully with Emscripten 4.0.23, CMake 3.31.10 and N
 Build compatibility adjustments are recorded in the script: disable dependency-only TBB tests, remove two invalid `template` disambiguators in Boost QVM indexed accessors, export `HEAPU8` for the existing save bridge, and package the empty music path as a directory rather than a file.
 
 A local smoke site with checksums for the rebuilt artifacts reached the main menu and opened the Russian tutorial map. This verifies basic startup, resource mounting and adventure-map rendering; it is not a full gameplay regression pass. Published desktop and lab engine files remain the original pinned artifacts. No mobile UI has been deployed by this groundwork change.
+
+## First adventure-map prototype
+
+Build the patched engine separately:
+
+```sh
+python3 scripts/build_engine.py --sdk /path/to/emsdk/upstream --mobile
+python3 scripts/install_mobile_engine.py .engine-work/emscripten/html5 /path/to/lab-static-site
+```
+
+Apply the patch before compiling; the installer only copies already-built artifacts and writes their integrity metadata. Keep `src/mobile-engine.js` as the checked-in empty default. The installer writes the populated file to the deployment directory, never to the public source checkout. Source-only exports without the experimental binaries fall back to the original engine.
+
+`engine-patches/mobile-adventure.patch` changes the map viewport and adds a bounded action bridge that checks VCMI shortcut availability. The original sidebar objects are retained offscreen because the engine still needs their state. The classic engine stays in `vendor/`; the patched one lives in `vendor-mobile/` and is chosen only on touch devices that launch in landscape. `?mobile-map=1` forces the prototype for desktop QA; `?mobile-map=off` restores the classic layout.
+
+The adventure map renders at one CSS pixel per engine pixel. The HTML controls have at least 44-pixel targets. Map zoom buttons and pinch change VCMI map zoom, never the canvas transform. Opening a classic dialog hides the new panel and clears queued actions. Returning restores the native map without scrolling its clipping container.
+
+This is a map-only prototype, not a completed mobile port. Menus, hero/town windows and battles retain their classic fit-to-screen layout and existing touch bridge. Start in landscape; portrait during the native map displays a rotation prompt. Full responsive resizing, hero/town pickers and dedicated mobile dialogs remain future work. Physical iPad/Safari and Android touch testing is still required.

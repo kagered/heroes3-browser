@@ -26,6 +26,7 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--sdk',type=Path,required=True,help='Emscripten SDK upstream folder (contains bin/ and emscripten/)')
     parser.add_argument('--work',type=Path,default=ROOT/'.engine-work')
+    parser.add_argument('--mobile',action='store_true',help='Apply the experimental mobile adventure-map patch')
     parser.add_argument('--prepare-only',action='store_true')
     parser.add_argument('--jobs',type=int,default=4,help='Compilation parallelism; default 4 to limit memory pressure')
     args=parser.parse_args()
@@ -34,11 +35,15 @@ def main():
     lock=json.loads((ROOT/'config/engine-build.lock.json').read_text())
     version=(sdk/'emscripten/emscripten-version.txt').read_text().strip().strip('"')
     if version.split('-',1)[0]!=lock['emscripten']:parser.error('Expected Emscripten '+lock['emscripten'])
-    tools={name:shutil.which(name) for name in ['cmake','ninja','node']}
-    if not all(tools.values()):parser.error('cmake, ninja and Node.js must be on PATH')
+    tools={name:shutil.which(name) for name in ['cmake','ninja','node','git']}
+    if not all(tools.values()):parser.error('cmake, ninja, Node.js and Git must be on PATH')
     source=work/'source';build=work/'emscripten'
     prepare(lock['archives']['source'],source,work/'downloads/source.tar.gz')
     prepare(lock['archives']['fuzzylite'],source/'AI/FuzzyLite',work/'downloads/fuzzylite.tar.gz')
+    patch=ROOT/'engine-patches/mobile-adventure.patch'
+    patched=subprocess.run(['git','apply','--reverse','--check',str(patch)],cwd=source,capture_output=True).returncode==0
+    if args.mobile and not patched:run(['git','apply',str(patch)],cwd=source)
+    if patched and not args.mobile:raise ValueError('This work directory contains the mobile patch. Use --mobile or a fresh --work directory for the baseline.')
     cmake=source/'CMakeLists.txt';text=cmake.read_text()
     if '-DTBB_TEST=OFF' not in text:
         text=text.replace('"-DBUILD_SHARED_LIBS=false"', '"-DBUILD_SHARED_LIBS=false"\n\t\t\t\t"-DTBB_TEST=OFF"')
@@ -64,6 +69,6 @@ def main():
     run([tools['ninja'],'-j'+str(args.jobs),'html5'],env=env,cwd=build)
     run([tools['ninja'],'-j32','html5'],env=env,cwd=build)
     artifacts={p.name:{'size':p.stat().st_size,'sha256':hashlib.sha256(p.read_bytes()).hexdigest()} for p in (build/'html5').glob('*') if p.is_file()}
-    (work/'build-result.json').write_text(json.dumps({'source_revision':lock['source_revision'],'files':artifacts},indent=2)+'\n')
+    (work/'build-result.json').write_text(json.dumps({'source_revision':lock['source_revision'],'profile':'mobile-adventure-v1' if args.mobile else 'baseline','files':artifacts},indent=2)+'\n')
     print('Engine built in '+str(build/'html5')+'. Desktop artifacts were not replaced.')
 if __name__=='__main__':main()

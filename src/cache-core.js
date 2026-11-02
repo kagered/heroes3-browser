@@ -10,6 +10,10 @@ window.HeroesCache = (() => {
   }
   function catalog(inventories) {
     const sizes = new Map([['engine-1.6.5:vendor/vcmi.data', 7919378], ['engine-1.6.5:vendor/vcmi.data.js', 64017], ['engine-1.6.5:vendor/vcmiclient.wasm', 9039947]]);
+    for (const [url, file] of Object.entries(window.HEROES_MOBILE_ENGINE || {})) {
+      if(url.startsWith('vendor-mobile/') && Number.isSafeInteger(file.size) && file.size >= 0)
+        sizes.set('engine-1.6.5:' + url, file.size);
+    }
     for (const language of ['ru', 'en']) {
       for (const file of inventories[language]?.files || []) {
         if (!Number.isSafeInteger(file.size) || file.size < 0) continue;

@@ -1,0 +1,131 @@
+--- a/client/adventureMap/AdventureMapWidget.cpp
++++ b/client/adventureMap/AdventureMapWidget.cpp
+@@ -9,6 +9,9 @@
+  */
+ #include "StdInc.h"
+ #include "AdventureMapWidget.h"
++#ifdef VCMI_HTML5_BUILD
++#include <emscripten.h>
++#endif
+ 
+ #include "AdventureMapShortcuts.h"
+ #include "CInfoBar.h"
+@@ -56,7 +59,28 @@
+ 	for (const auto & entry : shortcuts->getShortcuts())
+ 		addShortcut(entry.shortcut, entry.callback);
+ 
+-	const JsonNode config(JsonPath::builtin("config/widgets/adventureMap.json"));
++	JsonNode config(JsonPath::builtin("config/widgets/adventureMap.json"));
++#ifdef VCMI_HTML5_BUILD
++	if(MAIN_THREAD_EM_ASM_INT({ return Module.mobileAdventureUI ? 1 : 0; }))
++	{
++		JsonNode hidden, map;
++		hidden["type"].String() = "adventureMapContainer";
++		hidden["name"].String() = "classicMobileFallback";
++		hidden["area"]["left"].Float() = 0;
++		hidden["area"]["top"].Float() = pos.h;
++		hidden["area"]["width"].Float() = pos.w;
++		hidden["area"]["height"].Float() = pos.h;
++		for(const auto & item : config["items"].Vector())
++			if(item["name"].String() == "mapView") map = item;
++			else hidden["items"].Vector().push_back(item);
++		map["area"].Struct().clear();
++		map["area"]["left"].Float() = 0;
++		map["area"]["top"].Float() = 48;
++		map["area"]["width"].Float() = MAIN_THREAD_EM_ASM_INT({ return Module.mobileViewport.width; });
++		map["area"]["height"].Float() = MAIN_THREAD_EM_ASM_INT({ return Module.mobileViewport.height - 112; });
++		config["items"].Vector() = {hidden, map};
++	}
++#endif
+ 
+ 	for(const auto & entry : config["options"]["imagesPlayerColored"].Vector())
+ 		playerColoredImages.push_back(ImagePath::fromJson(entry));
+--- a/client/adventureMap/AdventureMapInterface.cpp
++++ b/client/adventureMap/AdventureMapInterface.cpp
+@@ -31,6 +31,10 @@
+ #include "../gui/Shortcut.h"
+ #include "../gui/WindowHandler.h"
+ #include "../render/Canvas.h"
++#include "../render/Colors.h"
++#ifdef VCMI_HTML5_BUILD
++#include <emscripten.h>
++#endif
+ #include "../render/IImage.h"
+ #include "../render/IRenderHandler.h"
+ #include "../render/IScreenHandler.h"
+@@ -159,6 +163,10 @@
+ 
+ void AdventureMapInterface::showAll(Canvas & to)
+ {
++#ifdef VCMI_HTML5_BUILD
++	if(MAIN_THREAD_EM_ASM_INT({ return Module.mobileAdventureUI ? 1 : 0; }))
++		to.drawColor(pos, Colors::BLACK);
++#endif
+ 	CIntObject::showAll(to);
+ 	dim(to);
+ 	LOCPLINT->cingconsole->show(to);
+@@ -937,3 +945,25 @@
+ 
+ 	return spellBeingCasted->getAdventureMechanics().canBeCastAt(problem, LOCPLINT->cb.get(), LOCPLINT->localState->getCurrentHero(), targetPosition);
+ }
++
++// Lab-only bridge. The regular shortcut conditions remain authoritative.
++unsigned AdventureMapInterface::mobileActions(int action)
++{
++	const EShortcut actions[] = {
++		EShortcut::ADVENTURE_VIEW_SELECTED, EShortcut::ADVENTURE_NEXT_HERO,
++		EShortcut::ADVENTURE_NEXT_TOWN, EShortcut::ADVENTURE_CAST_SPELL,
++		EShortcut::ADVENTURE_END_TURN, EShortcut::GLOBAL_OPTIONS,
++		EShortcut::ADVENTURE_TOGGLE_MAP_LEVEL, EShortcut::ADVENTURE_MOVE_HERO,
++		EShortcut::ADVENTURE_ZOOM_IN, EShortcut::ADVENTURE_ZOOM_OUT,
++		EShortcut::ADVENTURE_KINGDOM_OVERVIEW
++	};
++	unsigned enabled = 0;
++	for(const auto & shortcut : shortcuts->getShortcuts())
++		for(unsigned i = 0; i < sizeof(actions) / sizeof(actions[0]); ++i)
++			if(shortcut.shortcut == actions[i] && shortcut.isEnabled)
++			{
++				enabled |= 1u << i;
++				if(action == static_cast<int>(i + 1)) shortcut.callback();
++			}
++	return enabled;
++}
+--- a/client/adventureMap/AdventureMapInterface.h
++++ b/client/adventureMap/AdventureMapInterface.h
+@@ -112,6 +112,7 @@
+ 	void onScreenResize() override;
+ 
+ public:
++	unsigned mobileActions(int action);
+ 	AdventureMapInterface();
+ 
+ 	void hotkeyAbortCastingMode();
+--- a/client/gui/CGuiHandler.cpp
++++ b/client/gui/CGuiHandler.cpp
+@@ -9,6 +9,9 @@
+  */
+ #include "StdInc.h"
+ #include "CGuiHandler.h"
++#ifdef VCMI_HTML5_BUILD
++#include <emscripten.h>
++#endif
+ 
+ #include "CIntObject.h"
+ #include "CursorHandler.h"
+@@ -98,6 +101,16 @@
+ 	{
+ 		boost::mutex::scoped_lock interfaceLock(GH.interfaceMutex);
+ 
++#ifdef VCMI_HTML5_BUILD
++		if(MAIN_THREAD_EM_ASM_INT({ return Module.mobileAdventureUI ? 1 : 0; }))
++		{
++			bool active = adventureInt && windows().isTopWindow(adventureInt);
++			int action = MAIN_THREAD_EM_ASM_INT({ return (Module.mobileActions || []).shift() || 0; });
++			unsigned enabled = active ? adventureInt->mobileActions(action) : 0;
++			active = adventureInt && windows().isTopWindow(adventureInt);
++			MAIN_THREAD_EM_ASM({ Module.mobileAdventureState(!!$0, $1); }, active, enabled);
++		}
++#endif
+ 		if (nullptr != curInt)
+ 			curInt->update();
+ 
