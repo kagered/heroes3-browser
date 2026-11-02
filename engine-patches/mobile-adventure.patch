@@ -64,7 +64,7 @@
  	CIntObject::showAll(to);
  	dim(to);
  	LOCPLINT->cingconsole->show(to);
-@@ -937,3 +945,25 @@
+@@ -937,3 +945,30 @@
  
  	return spellBeingCasted->getAdventureMechanics().canBeCastAt(problem, LOCPLINT->cb.get(), LOCPLINT->localState->getCurrentHero(), targetPosition);
  }
@@ -78,7 +78,7 @@
 +		EShortcut::ADVENTURE_END_TURN, EShortcut::GLOBAL_OPTIONS,
 +		EShortcut::ADVENTURE_TOGGLE_MAP_LEVEL, EShortcut::ADVENTURE_MOVE_HERO,
 +		EShortcut::ADVENTURE_ZOOM_IN, EShortcut::ADVENTURE_ZOOM_OUT,
-+		EShortcut::ADVENTURE_KINGDOM_OVERVIEW
++		EShortcut::ADVENTURE_KINGDOM_OVERVIEW, EShortcut::ADVENTURE_FIRST_HERO
 +	};
 +	unsigned enabled = 0;
 +	for(const auto & shortcut : shortcuts->getShortcuts())
@@ -86,7 +86,12 @@
 +			if(shortcut.shortcut == actions[i] && shortcut.isEnabled)
 +			{
 +				enabled |= 1u << i;
-+				if(action == static_cast<int>(i + 1)) shortcut.callback();
++				if(action == static_cast<int>(i + 1))
++				{
++					if(action == 12 && LOCPLINT->localState->getCurrentHero())
++						centerOnObject(LOCPLINT->localState->getCurrentHero());
++					else shortcut.callback();
++				}
 +			}
 +	return enabled;
 +}

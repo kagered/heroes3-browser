@@ -374,6 +374,7 @@ async function fetchBytes(url,version='engine-1.6.5',onProgress) {
 }
 
 async function start(autoConnect=false) {
+  window.HeroesMobileAdventure?.prepareDisplay();
   busy(true);
   $('language').disabled = true;
   $('launch-error').hidden = true;
@@ -497,12 +498,13 @@ async function start(autoConnect=false) {
       server: { remoteHostname:networkMode ? host : 'localhost', remotePort:port,
         localHostname:networkMode ? host : 'localhost',localPort:port },
       lobby: { hostname: 'localhost' },
+      ...(mobileViewport ? {adventure:{leftButtonDrag:true,borderScroll:false},session:{adventureTrackHero:false}} : {}),
     }));
     write('/config/settings.json', config);
     write('/home/web_user/.config/vcmi/settings.json', config);
     loadingStage(4, ui('Файлы готовы. Запускаем игру — меню скоро появится.', 'Files are ready. Starting the game — the menu will appear shortly.'));
     $('launcher').hidden = true;
-    $('game').style.display = 'grid';
+    $('game').style.display = mobileViewport ? 'block' : 'grid';
     $('canvas').addEventListener('contextmenu', event => event.preventDefault());
     $('canvas').focus();
     engine.callMain(networkMode ? ['--disable-video','--donotstartserver'] : ['--disable-video']);

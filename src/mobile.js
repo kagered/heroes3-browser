@@ -10,15 +10,16 @@
   let tapTimer;
   function mouse(type, point, button=0) {
     canvas.focus({preventScroll:true});
-    canvas.dispatchEvent(new MouseEvent(type, {bubbles:true, cancelable:true,
-      clientX:point.x, clientY:point.y, button, buttons:type === 'mouseup' ? 0 : (held === 2 ? 2 : held === 0 ? 1 : 0)}));
+    const mapped=window.HeroesMobileAdventure?.remapPoint?.(point,canvas) || point;
+    const event=new MouseEvent(type,{bubbles:true,cancelable:true,clientX:mapped.x,clientY:mapped.y,button,buttons:type==='mouseup'?0:(held===2?2:held===0?1:0)});
+    event.heroesMobileMapped=true;canvas.dispatchEvent(event);
   }
   function release(point) {
     clearTimeout(timer);clearTimeout(tapTimer);
     if (held !== null) { mouse('mouseup', point || gesture?.last || {x:0,y:0}, held); held=null; }
   }
   function transform() {
-    if(window.HeroesMobileAdventure?.active){canvas.style.transform="";return;}
+    if(window.HeroesMobileAdventure?.session || window.HeroesMobileAdventure?.active){canvas.style.transform="";return;}
     const maxX = canvas.clientWidth * (zoom-1)/2;
     const maxY = canvas.clientHeight * (zoom-1)/2;
     panX = Math.max(-maxX,Math.min(maxX,panX));
@@ -67,6 +68,7 @@
         if(ratio>1.18 || ratio<0.85){window.HeroesMobileAdventure.send(ratio>1?9:10);gesture.center=center;}
         return;
       }
+      if(window.HeroesMobileAdventure?.session)return;
       zoom=Math.max(1,Math.min(3,gesture.zoom*center.distance/Math.max(1,gesture.center.distance)));
       panX=gesture.panX+center.x-gesture.center.x;panY=gesture.panY+center.y-gesture.center.y;transform();return;
     }

@@ -1,8 +1,10 @@
-/* Separate map viewport: one CSS pixel per engine pixel, no canvas zoom. */
-#game.mobile-adventure-active{padding:0;overflow:clip!important;display:block!important}
-#game.mobile-adventure-active canvas{position:absolute;left:0;top:0;width:var(--mobile-render-width)!important;height:var(--mobile-render-height)!important;max-width:none;max-height:none;transform:none!important;aspect-ratio:auto}
-#game.mobile-adventure-active .touch-tools,#game.mobile-adventure-active>#back,#game.mobile-adventure-active>#fullscreen{display:none}
-.mobile-adventure-shell[hidden]{display:none}
+/* Mobile session always presents a landscape surface, with fixed-size controls. */
+#game.mobile-adventure-session{inset:auto;left:0;top:0;width:var(--mobile-view-width);height:var(--mobile-view-height);padding:0;overflow:clip!important}
+#game.mobile-adventure-session.mobile-portrait{left:50%;top:50%;transform:translate(-50%,-50%) rotate(90deg)}
+#game.mobile-adventure-session canvas{position:absolute;left:50%;top:calc(50% + 24px);width:var(--mobile-dialog-width)!important;height:var(--mobile-dialog-height)!important;max-width:none;max-height:none;aspect-ratio:auto;transform:translate(-50%,-50%)!important}
+#game.mobile-adventure-active canvas{left:0;top:0;width:var(--mobile-render-width)!important;height:var(--mobile-render-height)!important;transform:none!important}
+#game.mobile-adventure-session .touch-tools,#game.mobile-adventure-session>#back,#game.mobile-adventure-session>#fullscreen,#game.mobile-adventure-session .orientation-note{display:none!important}
+.mobile-adventure-shell [hidden]{display:none!important}
 .mobile-adventure-shell nav{position:absolute;left:0;right:0;display:flex;align-items:center;gap:6px;background:#191b20;border-color:#6b5d41;padding:2px max(8px,env(safe-area-inset-right)) 2px max(8px,env(safe-area-inset-left));z-index:6}
 .mobile-adventure-top{top:0;height:48px;border-bottom:1px solid}
 .mobile-adventure-bottom{bottom:0;height:64px;border-top:1px solid}
@@ -11,5 +13,6 @@
 .mobile-adventure-shell button:disabled{opacity:.35}
 .mobile-adventure-bottom button{flex:1;padding:5px}
 .mobile-adventure-shell [data-action="5"]{background:#ad9057;color:#111}
-.mobile-adventure-top span{flex:1;font:600 13px system-ui;color:#d6bd8c}
-@media(orientation:portrait){#game.mobile-adventure-active::after{content:'↻ Landscape / Поверните устройство';position:absolute;inset:0;background:#15171bf5;color:#eee;display:grid;place-items:center;z-index:8}}
+.mobile-adventure-top button:last-child{margin-left:auto}
+.mobile-display-help{position:absolute;inset:52px 12px 12px;z-index:9;background:#202227;border:1px solid #b89b65;border-radius:10px;padding:18px;max-width:560px;margin:auto;color:#eee;font:16px/1.5 system-ui;overflow:auto}
+.mobile-display-help p{margin:0 0 14px}

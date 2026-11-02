@@ -40,4 +40,5 @@ if __name__=='__main__':
  svg=f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" fill="#101113"/><rect x="4" y="4" width="56" height="56" fill="none" stroke="#bfa473" stroke-opacity=".65"/><path d="{paths}" fill="#d7bc88"/></svg>\n'''
  (ROOT/'favicon.svg').write_text(svg)
  (ROOT/'favicon-32.png').write_bytes(png(32));(ROOT/'apple-touch-icon.png').write_bytes(png(180));(ROOT/'favicon.ico').write_bytes(ico())
- print('SVG monogram, PNG 32/180 and ICO 16/32 generated')
+ for size in (192,512):(ROOT/f'pwa-icon-{size}.png').write_bytes(png(size))
+ print('SVG monogram, PNG 32/180/192/512 and ICO 16/32 generated')
