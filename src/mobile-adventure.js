@@ -25,10 +25,11 @@
     const game=document.getElementById('game'), visual=window.visualViewport;
     const width=Math.round(visual?.width || innerWidth), height=Math.round(visual?.height || innerHeight);
     // Safari overlays its system status and dismissal controls in tablet fullscreen.
+    const ipad=typeof navigator!=='undefined' && (/iPad/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints>1));
     const inset=touchDevice && document.fullscreenElement ? 28 : 0;
     const view={width:Math.max(width,height),height:Math.min(width,height)-inset};
     game.style.setProperty('--mobile-top-inset',inset+'px');
-    game.style.setProperty('--mobile-start-inset',inset?'64px':'8px');
+    game.style.setProperty('--mobile-start-inset',inset && ipad?'96px':inset?'64px':'8px');
     const changed=module.mobileViewport.width!==view.width || module.mobileViewport.height!==view.height;
     module.mobileViewport={width:view.width,height:view.height};
     if(changed)module.mobileViewportRevision=(module.mobileViewportRevision||0)+1;
@@ -49,6 +50,7 @@
   }
   async function fullscreen(showHelp=true) {
     try {
+      if(typeof navigator!=='undefined' && navigator.standalone)return;
       if(!document.fullscreenElement) {
         if(!document.documentElement.requestFullscreen)throw new Error('unsupported');
         await document.documentElement.requestFullscreen({navigationUI:'hide'});
@@ -128,7 +130,7 @@
       dialogTop.append(back,displayButton(),home);
       screenHelp=document.createElement('div');screenHelp.className='mobile-display-help';screenHelp.hidden=true;
       screenHelp.setAttribute('role','dialog');screenHelp.setAttribute('aria-modal','false');
-      const info=document.createElement('p');info.textContent=text('Если браузер не убирает панели: в Safari нажми «Поделиться» → «На экран Домой», затем открой игру через появившийся значок. Это запуск сайта, без отдельного приложения.','If your browser keeps its bars visible: in Safari choose Share → Add to Home Screen, then launch the game from that icon. This opens the website without a separate app.');
+      const info=document.createElement('p');info.textContent=text('В Safari жест выхода из полного экрана управляется системой. Для игры без этой кнопки и жеста: в Safari нажми «Поделиться» → «На экран Домой», затем открой игру через появившийся значок. Это запуск сайта, без отдельного приложения.','Safari controls its fullscreen exit gesture. To play without that button and gesture: in Safari choose Share → Add to Home Screen, then launch the game from that icon. This opens the website without a separate app.');
       const close=document.createElement('button');close.type='button';close.textContent=text('Понятно','Got it');close.onclick=()=>{screenHelp.hidden=true;};
       screenHelp.append(info,close);
       pausePanel=document.createElement('section');pausePanel.className='mobile-pause-panel';pausePanel.hidden=true;
@@ -155,6 +157,11 @@
       panel.append(mapTop,dialogTop,bottom,screenHelp,pausePanel);game.append(panel);
       // SDL derives mouse coordinates from the canvas bounding rectangle, which
       // contains swapped axes when the landscape surface is rotated in portrait.
+      // Cancel page scrolling only inside the game surface. Safari's own
+      // fullscreen dismissal gesture remains controlled by the system.
+      game.addEventListener('touchmove',event=>{
+        if(session && event.cancelable && (event.target===game || event.target===document.getElementById('canvas')))event.preventDefault();
+      },{passive:false});
       const canvas=document.getElementById('canvas');
       for(const type of ['mousedown','mousemove','mouseup'])canvas.addEventListener(type,event=>{
         if(event.heroesMobileMapped || !session || innerWidth>=innerHeight)return;

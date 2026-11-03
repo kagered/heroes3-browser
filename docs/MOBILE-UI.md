@@ -87,7 +87,7 @@ Town actions call the original building handlers. Construction, market, guild an
 
 On narrow screens recruitment cards use two columns. Town viewport changes rebuild the town window through the event queue, preserving the selected section and game state.
 
-The Army section reuses the actual garrison and hero slots, including movement and splitting callbacks. Individual-dwelling recruitment keeps the original resource prices, affordability checks and recruit callback. It lays out creature choices beside quantity and costs, with large increment/decrement, Maximum, Recruit and Cancel controls. The quantity slider remains available. Empty purchases do nothing. Back / Close dismisses both native windows.
+The Army section reuses the actual garrison and hero slots, including movement and splitting callbacks. Individual-dwelling recruitment keeps the original resource prices, affordability checks and recruit callback. It lays out creature choices beside quantity and costs, with large increment/decrement, Maximum, Recruit and Cancel controls. Quantity uses large increment/decrement and Maximum controls; the fixed-size desktop slider bitmap is kept offscreen while its original quantity logic remains authoritative. Empty purchases do nothing. Back / Close dismisses both native windows.
 
 The native town currently requires at least 568 × 280 visible landscape pixels (320 pixels high below 700 pixels wide); recruitment requires at least 532 × 320. Shorter viewports retain the classic window and large dismissal bar. Browser standalone/fullscreen mode may provide additional usable height. Desktop never enters these branches.
 
@@ -118,3 +118,11 @@ The installer writes all four mobile engine files under a content-derived `vendo
 - Construction, building confirmation, mage guild and quest log have native layouts. Original build/research/quest actions and checks remain authoritative.
 - Active game time is a browser-side ledger, counted by the lab mobile engine while a game exists in its window stack. Hidden/suspended tabs do not accrue time. It is displayed on the home page and pause menu, and included as optional metadata in the existing v1 save archive. Reimport merges per-session maxima to prevent double counting. This is total tracked play time, not a timer embedded in individual VCMI saves; old saves have no historical time to recover.
 - Save/load and advanced market/kingdom modes remain classic. iPad Safari fullscreen still requires a physical-device check.
+
+### Mobile adventure v9
+
+- Recruitment repaints its textured surface each frame and no longer stretches the desktop slider bitmap. Quantity remains bounded by the original stock and affordability logic.
+- Ordinary creature details use Stats and Abilities pages with original computed combat values, scrollable descriptions, and original dismissal/upgrade confirmations. Commander extensions retain their classic layout.
+- Hero and town Army Split opens a quantity dialog for the selected owned stack and an empty slot in the same army. A clear hint explains missing selection, insufficient units or a full army. Desktop splitting retains its existing behavior. The landscape split dialog uses real numeric inputs and large increment/decrement controls.
+- iPad fullscreen reserves 96 pixels at the start of the top navigation for Safari's dismissal control. Game gestures suppress page scrolling; Safari's system swipe-to-exit cannot be disabled by page code. Add to Home Screen avoids the browser fullscreen dismissal overlay; standalone launch does not request another fullscreen layer.
+- Test on physical iPad: swipe over the map, system dismissal and return, top controls, split 2-unit stack, recruitment and creature details.

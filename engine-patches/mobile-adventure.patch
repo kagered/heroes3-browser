@@ -423,10 +423,12 @@
  #include "../lib/ResourceSet.h"
  #include "../widgets/Images.h"
  #include "../widgets/IVideoHolder.h"
-@@ -51,6 +52,25 @@
+@@ -51,6 +52,27 @@
  
  enum class EUserEvent;
  
++class CMobilePanel;
++
 +// Native-sized controls shared by the lab town and recruitment layouts.
 +class CMobileTownButton : public CIntObject
 +{
@@ -449,7 +451,7 @@
  /// Recruitment window where you can recruit creatures
  class CRecruitmentWindow : public CStatusbarWindow
  {
-@@ -94,12 +114,19 @@
+@@ -94,12 +116,20 @@
  	std::shared_ptr<CreatureCostBox> costPerTroopValue;
  	std::shared_ptr<CreatureCostBox> totalCostValue;
  
@@ -457,6 +459,7 @@
 + std::shared_ptr<CFilledTexture> mobileTexture;
 + std::vector<std::shared_ptr<CMobileTownButton>> mobileButtons;
 + void layoutMobileCards();
++ void show(Canvas & to) override;
  	void select(std::shared_ptr<CCreatureCard> card);
  	void buy();
  	void sliderMoved(int to);
@@ -469,7 +472,36 @@
  	const CGDwelling * const dwelling;
  	CRecruitmentWindow(const CGDwelling * Dwelling, int Level, const CArmedInstance * Dst, const std::function<void(CreatureID,int)> & Recruit, const std::function<void()> & onClose, int y_offset = 0);
  	void availableCreaturesChanged();
-@@ -152,9 +179,14 @@
+@@ -107,7 +137,7 @@
+ };
+ 
+ /// Split window where creatures can be split up into two single unit stacks
+-class CSplitWindow : public CWindowObject
++class CSplitWindow : public CWindowObject, public IMobileWindow
+ {
+ 	std::function<void(int, int)> callback;
+ 	int leftAmount;
+@@ -124,6 +154,8 @@
+ 	std::shared_ptr<CTextInput> leftInput;
+ 	std::shared_ptr<CTextInput> rightInput;
+ 
++ std::shared_ptr<CMobilePanel> mobilePanel;
++ void setupMobile();
+ 	void setAmountText(std::string text, bool left);
+ 	void setAmount(int value, bool left);
+ 	void sliderMoved(int value);
+@@ -136,6 +168,10 @@
+ 	 * leftMin, rightMin - minimal amount of creatures in each stack
+ 	 * leftAmount, rightAmount - amount of creatures in each stack
+ 	 */
++ bool isMobileDialog() const override {return bool(mobilePanel);}
++ void requestMobileResize() override;
++ void onScreenResize() override;
++ void keyPressed(EShortcut key) override;
+ 	CSplitWindow(const CCreature * creature, std::function<void(int, int)> callback, int leftMin, int rightMin, int leftAmount, int rightAmount);
+ };
+ 
+@@ -152,9 +188,14 @@
  	std::shared_ptr<CComponentBox> box; //skills to select
  	std::function<void(ui32)> cb;
  
@@ -484,7 +516,7 @@
  	CLevelWindow(const CGHeroInstance *hero, PrimarySkill pskill, std::vector<SecondarySkill> &skills, std::function<void(ui32)> callback);
  
  	void close() override;
-@@ -217,7 +249,8 @@
+@@ -217,7 +258,8 @@
  	void keyPressed(EShortcut key) override;
  };
  
@@ -494,7 +526,7 @@
  {
  	std::function<void()> onWindowClosed;
  
-@@ -294,6 +327,12 @@
+@@ -294,6 +336,12 @@
  	CGHeroInstance* heroToInvite;
  	void addInvite();
  
@@ -545,8 +577,16 @@
  CRecruitmentWindow::CCreatureCard::CCreatureCard(CRecruitmentWindow * window, const CCreature * crea, int totalAmount)
  	: CIntObject(LCLICK | SHOW_POPUP),
  	parent(window),
-@@ -188,7 +210,8 @@
+@@ -186,9 +208,16 @@
+ 		close();
+ }
  
++void CRecruitmentWindow::show(Canvas & to)
++{
++ if(mobileLayout){showAll(to);return;}
++ CStatusbarWindow::show(to);
++}
++
  void CRecruitmentWindow::showAll(Canvas & to)
  {
 -	CWindowObject::showAll(to);
@@ -555,7 +595,7 @@
  
  	Rect(172, 222, 67, 42) + pos.topLeft();
  
-@@ -207,7 +230,7 @@
+@@ -207,7 +236,7 @@
  }
  
  CRecruitmentWindow::CRecruitmentWindow(const CGDwelling * Dwelling, int Level, const CArmedInstance * Dst, const std::function<void(CreatureID,int)> & Recruit, const std::function<void()> & onClose, int y_offset):
@@ -564,7 +604,7 @@
  	onRecruit(Recruit),
  	onClose(onClose),
  	level(Level),
-@@ -237,7 +260,51 @@
+@@ -237,7 +266,53 @@
  	availableTitle = std::make_shared<CLabel>(205, 233, FONT_SMALL, ETextAlignment::CENTER, Colors::WHITE, CGI->generaltexth->allTexts[465]);
  	toRecruitTitle = std::make_shared<CLabel>(279, 233, FONT_SMALL, ETextAlignment::CENTER, Colors::WHITE, CGI->generaltexth->allTexts[16]);
  
@@ -580,14 +620,16 @@
 +  std::rotate(children.begin(),std::find(children.begin(),children.end(),mobileTexture.get()),children.end());
 +  title->enable();title->moveTo(Point(pos.w/2,18));
 +  int right=pos.w-264;
++  for(auto label:{title,availableTitle,toRecruitTitle,availableValue,toRecruitValue}){label->font=FONT_MEDIUM;label->setText(label->getText());}
 +  availableTitle->enable();availableTitle->moveTo(Point(right+62,40));
 +  toRecruitTitle->enable();toRecruitTitle->moveTo(Point(right+190,40));
 +  availableValue->enable();availableValue->moveTo(Point(right+62,60));
 +  toRecruitValue->enable();toRecruitValue->moveTo(Point(right+190,60));
-+  costPerTroopValue->enable();costPerTroopValue->moveTo(Point(right+6,70));
-+  totalCostValue->enable();totalCostValue->moveTo(Point(right+138,70));
++  costPerTroopValue->enable();costPerTroopValue->moveTo(Point(right+6,64));
++  totalCostValue->enable();totalCostValue->moveTo(Point(right+138,64));
 +  slider=std::make_shared<CSlider>(Point(right+60,pos.h-88),136,std::bind(&CRecruitmentWindow::sliderMoved,this,_1),0,0,0,Orientation::HORIZONTAL);
-+  slider->pos.h=40;
++  // Keep slider logic, but use large touch controls instead of stretching its fixed bitmap.
++  slider->moveTo(Point(3000,3000));
 +  mobileButtons.push_back(std::make_shared<CMobileTownButton>(Rect(right+6,pos.h-104,44,44),"−",[this](){slider->scrollBy(-1);}));
 +  mobileButtons.push_back(std::make_shared<CMobileTownButton>(Rect(right+208,pos.h-104,44,44),"+",[this](){slider->scrollBy(1);}));
 +  const int bw=(pos.w-48)/3;
@@ -617,7 +659,7 @@
  }
  
  void CRecruitmentWindow::availableCreaturesChanged()
-@@ -291,6 +358,7 @@
+@@ -291,6 +366,7 @@
  		curx += totalCreatureWidth;
  	}
  
@@ -625,7 +667,50 @@
  	//restore selection
  	select(cards[selectedIndex]);
  
-@@ -399,12 +467,42 @@
+@@ -313,7 +389,7 @@
+ }
+ 
+ CSplitWindow::CSplitWindow(const CCreature * creature, std::function<void(int, int)> callback_, int leftMin_, int rightMin_, int leftAmount_, int rightAmount_)
+-	: CWindowObject(PLAYER_COLORED, ImagePath::builtin("GPUCRDIV")),
++	: CWindowObject(PLAYER_COLORED | (CMessage::isMobileSession()?SHADOW_DISABLED:0), ImagePath::builtin("GPUCRDIV")),
+ 	callback(callback_),
+ 	leftAmount(leftAmount_),
+ 	rightAmount(rightAmount_),
+@@ -352,6 +428,33 @@
+ 	std::string titleStr = CGI->generaltexth->allTexts[256];
+ 	boost::algorithm::replace_first(titleStr,"%s", creature->getNamePluralTranslated());
+ 	title = std::make_shared<CLabel>(150, 34, FONT_BIG, ETextAlignment::CENTER, Colors::YELLOW, titleStr);
++ setupMobile();
++}
++
++void CSplitWindow::setupMobile()
++{
++ const Rect area=prepareMobileWindow(*this,mobilePanel);if(area.w<=0)return;
++ addUsedEvents(KEYBOARD);
++ OBJECT_CONSTRUCTION;
++ mobilePanel=std::make_shared<CMobilePanel>(Point(pos.w,pos.h),title->getText(),std::vector<std::string>{});
++ const int half=pos.w/2,y=std::max(44,(pos.h-182)/2);
++ for(bool left:{true,false})
++ {
++  const int x=(left?0:half)+(half-228)/2;
++  mobilePanel->adopt(0,left?animLeft:animRight,Point(x,y));
++  mobilePanel->adopt(0,left?leftInput:rightInput,Point(x+120,y+20));
++  mobilePanel->add<CMobileTownButton>(0,Rect(x+120,y+64,44,44),"-",[this,left](){slider->scrollBy(left?1:-1);});
++  mobilePanel->add<CMobileTownButton>(0,Rect(x+176,y+64,44,44),"+",[this,left](){slider->scrollBy(left?-1:1);});
++ }
++ mobilePanel->add<CMobileTownButton>(0,Rect(12,pos.h-52,half-18,44),mobileText("Разделить","Split"),[this](){apply();});
++ mobilePanel->add<CMobileTownButton>(0,Rect(half+6,pos.h-52,half-18,44),mobileText("Отмена","Cancel"),[this](){close();});
++}
++void CSplitWindow::requestMobileResize(){if(mobilePanel)mobilePanel->resize(this,[this](){setupMobile();});}
++void CSplitWindow::onScreenResize(){if(mobilePanel)setupMobile();else CWindowObject::onScreenResize();}
++void CSplitWindow::keyPressed(EShortcut key)
++{
++ if(mobilePanel && (key==EShortcut::GLOBAL_CANCEL || key==EShortcut::GLOBAL_RETURN)){close();return;}
++ CWindowObject::keyPressed(key);
+ }
+ 
+ void CSplitWindow::setAmountText(std::string text, bool left)
+@@ -399,12 +502,42 @@
  }
  
  CLevelWindow::CLevelWindow(const CGHeroInstance * hero, PrimarySkill pskill, std::vector<SecondarySkill> & skills, std::function<void(ui32)> callback)
@@ -669,7 +754,7 @@
  
  	if(!skills.empty())
  	{
-@@ -438,6 +536,12 @@
+@@ -438,6 +571,12 @@
  	skillIcon = std::make_shared<CAnimImage>(AnimationPath::builtin("PSKIL42"), static_cast<int>(pskill), 0, 174, 190);
  
  	skillValue = std::make_shared<CLabel>(192, 253, FONT_MEDIUM, ETextAlignment::CENTER, Colors::WHITE, CGI->generaltexth->primarySkillNames[static_cast<int>(pskill)] + " +1");
@@ -682,7 +767,7 @@
  }
  
  void CLevelWindow::close()
-@@ -532,6 +636,7 @@
+@@ -532,6 +671,7 @@
  		videoPlayer = std::make_shared<VideoWidget>(Point(70, 56), VideoPath::builtin("TAVERN.BIK"), false);
  
  	addInvite();
@@ -690,7 +775,7 @@
  }
  
  void CTavernWindow::addInvite()
-@@ -1739,3 +1844,26 @@
+@@ -1739,3 +1879,26 @@
  {
  	exit(true);
  }
@@ -852,7 +937,7 @@
  #include "QuickRecruitmentWindow.h"
  #include "CCreatureWindow.h"
  
-@@ -1325,8 +1330,140 @@
+@@ -1325,8 +1330,141 @@
  	}
  }
  
@@ -935,7 +1020,8 @@
 +  heroes->garrisonedHero->moveTo(Point(garr->pos.x-66,garr->pos.y));
 +  heroes->visitingHero->moveTo(Point(garr->pos.x-66,garr->pos.y+armyGap));
 +  garr->enable();heroes->enable();
-+  for(auto & split:garr->splitButtons){split->moveTo(Point(pos.x+pos.w-56,pos.y+armyY));split->pos.h=44;}
++  for(auto & split:garr->splitButtons){split->moveTo(Point(3000,3000));split->disable();}
++  mobileControls.push_back(std::make_shared<CMobileTownButton>(Rect(pos.w-70,armyY,64,44),mobileTownText("Делить","Split"),[this](){if(!garr->splitSelectedMobile())LOCPLINT->showInfoDialog(mobileTownText("Выбери свой отряд из двух или более существ. Для разделения нужен свободный слот в этой армии.","Select your stack of at least two creatures. Splitting requires an empty slot in the same army."));}));
 +
 +  if(!compactArmy)mobileControls.push_back(std::make_shared<CLabel>(garr->pos.x-pos.x,42,FONT_MEDIUM,ETextAlignment::TOPLEFT,Colors::YELLOW,mobileTownText("Гарнизон","Garrison")));
 +  if(!compactArmy)mobileControls.push_back(std::make_shared<CLabel>(garr->pos.x-pos.x,122,FONT_MEDIUM,ETextAlignment::TOPLEFT,Colors::YELLOW,mobileTownText("Гость","Visiting hero")));
@@ -994,7 +1080,7 @@
  	town(Town)
  {
  	OBJECT_CONSTRUCTION;
-@@ -1372,6 +1509,7 @@
+@@ -1372,6 +1510,7 @@
  	townlist->onSelect = std::bind(&CCastleInterface::townChange, this);
  
  	recreateIcons();
@@ -1002,7 +1088,7 @@
  	if (!from)
  		adventureInt->onAudioPaused();
  	CCS->musich->playMusicFromSet("faction", town->getFaction()->getJsonKey(), true, false);
-@@ -1457,6 +1595,7 @@
+@@ -1457,6 +1596,7 @@
  
  void CCastleInterface::recreateIcons()
  {
@@ -1010,7 +1096,7 @@
  	OBJECT_CONSTRUCTION;
  	size_t iconIndex = town->getTown()->clientInfo.icons[town->hasFort()][town->built >= LOCPLINT->cb->getSettings().getInteger(EGameSettings::TOWNS_BUILDINGS_PER_TURN_CAP)];
  
-@@ -1499,6 +1638,7 @@
+@@ -1499,6 +1639,7 @@
  
  void CCastleInterface::keyPressed(EShortcut key)
  {
@@ -1018,7 +1104,7 @@
  	switch(key)
  	{
  	case EShortcut::MOVE_UP:
-@@ -1675,6 +1815,7 @@
+@@ -1675,6 +1816,7 @@
  				boxes[row].push_back(std::make_shared<CBuildingBox>(posX, posY, town, building));
  		}
  	}
@@ -1026,7 +1112,7 @@
  }
  
  CBuildWindow::CBuildWindow(const CGTownInstance *Town, const CBuilding * Building, EBuildingState state, bool rightClick):
-@@ -1740,6 +1881,7 @@
+@@ -1740,6 +1882,7 @@
  		cancel = std::make_shared<CButton>(Point(290, 445), AnimationPath::builtin("ICANCEL"), CButton::tooltip(tooltipNo.toString()), [&](){ close();}, EShortcut::GLOBAL_CANCEL);
  		cancel->setBorderColor(Colors::METALLIC_GOLD);
  	}
@@ -1034,7 +1120,7 @@
  }
  
  void CBuildWindow::buyFunc()
-@@ -2075,6 +2217,7 @@
+@@ -2075,6 +2218,7 @@
  		}
  	}
  
@@ -1042,7 +1128,7 @@
  	redraw();
  }
  
-@@ -2209,3 +2352,77 @@
+@@ -2209,3 +2353,77 @@
  
  	costIcon = std::make_shared<CAnimImage>(AnimationPath::builtin("RESOURCE"), GameResID(EGameResID::GOLD), 0, 148, 244);
  }
@@ -1311,7 +1397,7 @@
 + mobilePanel->adopt(2,garr,Point((pos.w-454)/2,54));
 + for(auto & split:garr->splitButtons)split->disable();
 + int bw=(pos.w-40)/3;
-+ mobilePanel->add<CMobileTownButton>(2,Rect(12,132,bw,44),mobileText("Разделить","Split"),[this](){garr->splitClick();});
++ mobilePanel->add<CMobileTownButton>(2,Rect(12,132,bw,44),mobileText("Разделить","Split"),[this](){if(!garr->splitSelectedMobile())LOCPLINT->showInfoDialog(mobileText("Выбери свой отряд из двух или более существ. Для разделения нужен свободный слот в этой армии.","Select your stack of at least two creatures. Splitting requires an empty slot in the same army."));});
 + mobilePanel->add<CMobileTownButton>(2,Rect(20+bw,132,bw,44),mobileText("Сменить строй","Formation"),[this](){auto f=curHero->formation==EArmyFormation::TIGHT?EArmyFormation::LOOSE:EArmyFormation::TIGHT;LOCPLINT->cb->setFormation(curHero,f);});
 + auto tactics=mobilePanel->add<CMobileTownButton>(2,Rect(28+2*bw,132,bw,44),mobileText("Тактика","Tactics"),[this](){if(!tacticsButton->isBlocked())curHero->tacticFormationEnabled=!curHero->tacticFormationEnabled;},!tacticsButton->isBlocked());
 + // Move the actual artifact places, never copy their items or callbacks.
@@ -2088,3 +2174,220 @@
 + owner.pos=Rect(area.x+(area.w-width)/2,area.y,width,area.h);
 + return owner.pos;
 +}
+--- a/client/widgets/CGarrisonInt.cpp
++++ b/client/widgets/CGarrisonInt.cpp
+@@ -587,6 +587,17 @@
+ 		slot->update();
+ }
+ 
++bool CGarrisonInt::splitSelectedMobile()
++{
++ // Choose an explicit destination before opening the quantity dialog. The
++ // classic Split toggle alone gives no feedback on a touch-only interface.
++ if(!LOCPLINT->makingTurn || !highlighted || !checkSelected(highlighted,1) || !highlighted->our())return false;
++ for(const auto & destination:availableSlots)
++  if(destination->upg==highlighted->upg && !destination->creature && destination->getObj())
++   return destination->split();
++ return false;
++}
++
+ void CGarrisonInt::splitClick()
+ {
+ 	if(!getSelection())
+--- a/client/widgets/CGarrisonInt.h
++++ b/client/widgets/CGarrisonInt.h
+@@ -128,6 +128,7 @@
+ 	const CArmedInstance* army(EGarrisonType which) const;
+ 	bool isArmyOwned(EGarrisonType which) const;
+ 
++	bool splitSelectedMobile();
+ 	void splitClick();  ///< handles click on split button
+ 	void splitStacks(const CGarrisonSlot * from, const CArmedInstance * armyDest, SlotID slotDest, int amount);  ///< TODO: comment me
+ 	void moveStackToAnotherArmy(const CGarrisonSlot * selected);
+--- a/client/windows/CCreatureWindow.cpp
++++ b/client/windows/CCreatureWindow.cpp
+@@ -9,6 +9,7 @@
+  */
+ #include "StdInc.h"
+ #include "CCreatureWindow.h"
++#include "MobileWindow.h"
+ 
+ #include <vcmi/spells/Spell.h>
+ #include <vcmi/spells/Service.h>
+@@ -710,6 +711,13 @@
+ 		return ImagePath::builtin("stackWindow/info-panel-0");
+ }
+ 
++std::vector<std::pair<std::string,std::string>> CStackWindow::MainSection::mobileStats() const
++{
++ std::vector<std::pair<std::string,std::string>> result;
++ for(size_t i=0;i+1<stats.size();i+=2)result.emplace_back(stats[i]->getText(),stats[i+1]->getText());
++ return result;
++}
++
+ void CStackWindow::MainSection::addStatLabel(EStat index, int64_t value1, int64_t value2)
+ {
+ 	const auto title = statNames.at(static_cast<size_t>(index));
+@@ -732,7 +740,7 @@
+ }
+ 
+ CStackWindow::CStackWindow(const CStack * stack, bool popup)
+-	: CWindowObject(BORDERED | (popup ? RCLICK_POPUP : 0)),
++	: CWindowObject((CMessage::isMobileSession()?SHADOW_DISABLED:0) | BORDERED | (popup ? RCLICK_POPUP : 0)),
+ 	info(new UnitView())
+ {
+ 	info->stack = stack;
+@@ -745,7 +753,7 @@
+ }
+ 
+ CStackWindow::CStackWindow(const CCreature * creature, bool popup)
+-	: CWindowObject(BORDERED | (popup ? RCLICK_POPUP : 0)),
++	: CWindowObject((CMessage::isMobileSession()?SHADOW_DISABLED:0) | BORDERED | (popup ? RCLICK_POPUP : 0)),
+ 	info(new UnitView())
+ {
+ 	info->creature = creature;
+@@ -754,7 +762,7 @@
+ }
+ 
+ CStackWindow::CStackWindow(const CStackInstance * stack, bool popup)
+-	: CWindowObject(BORDERED | (popup ? RCLICK_POPUP : 0)),
++	: CWindowObject((CMessage::isMobileSession()?SHADOW_DISABLED:0) | BORDERED | (popup ? RCLICK_POPUP : 0)),
+ 	info(new UnitView())
+ {
+ 	info->stackNode = stack;
+@@ -766,7 +774,7 @@
+ }
+ 
+ CStackWindow::CStackWindow(const CStackInstance * stack, std::function<void()> dismiss, const UpgradeInfo & upgradeInfo, std::function<void(CreatureID)> callback)
+-	: CWindowObject(BORDERED),
++	: CWindowObject((CMessage::isMobileSession()?SHADOW_DISABLED:0) | BORDERED),
+ 	info(new UnitView())
+ {
+ 	info->stackNode = stack;
+@@ -782,7 +790,7 @@
+ }
+ 
+ CStackWindow::CStackWindow(const CCommanderInstance * commander, bool popup)
+-	: CWindowObject(BORDERED | (popup ? RCLICK_POPUP : 0)),
++	: CWindowObject((CMessage::isMobileSession()?SHADOW_DISABLED:0) | BORDERED | (popup ? RCLICK_POPUP : 0)),
+ 	info(new UnitView())
+ {
+ 	info->stackNode = commander;
+@@ -795,7 +803,7 @@
+ }
+ 
+ CStackWindow::CStackWindow(const CCommanderInstance * commander, std::vector<ui32> &skills, std::function<void(ui32)> callback)
+-	: CWindowObject(BORDERED),
++	: CWindowObject((CMessage::isMobileSession()?SHADOW_DISABLED:0) | BORDERED),
+ 	info(new UnitView())
+ {
+ 	info->stackNode = commander;
+@@ -831,6 +839,53 @@
+ 
+ 	initBonusesList();
+ 	initSections();
++ setupMobile();
++}
++
++void CStackWindow::setupMobile()
++{
++ if(info->commander)return;
++ const Rect area=prepareMobileWindow(*this,mobilePanel);if(area.w<=0)return;
++ addUsedEvents(KEYBOARD);
++ OBJECT_CONSTRUCTION;
++ mobilePanel=std::make_shared<CMobilePanel>(Point(pos.w,pos.h),info->getName(),std::vector<std::string>{mobileText("Параметры","Stats"),mobileText("Способности","Abilities")});
++ mobilePanel->add<CCreaturePic>(0,20,46,info->creature)->setAmount(info->creatureCount);
++ auto node=info->stackNode;
++ auto values=std::static_pointer_cast<MainSection>(mainSection)->mobileStats();
++ const int x=144,w=(pos.w-x-24)/2,rowHeight=std::min(42,(pos.h-160)/std::max(1,int((values.size()+1)/2)));
++ for(int i=0;i<values.size();++i)mobilePanel->add<CTextBox>(0,values[i].first+": "+values[i].second,Rect(x+(i%2)*w,48+(i/2)*rowHeight,w-8,rowHeight),0,FONT_MEDIUM,ETextAlignment::TOPLEFT);
++ auto morale=mobilePanel->add<MoraleLuckBox>(0,true,Rect(pos.w/2-42,0,42,42));morale->set(node);
++ auto luck=mobilePanel->add<MoraleLuckBox>(0,false,Rect(pos.w/2+10,0,42,42));luck->set(node);
++ std::string abilities;
++ for(const auto & bonus:activeBonuses){if(!abilities.empty())abilities+="\n\n";abilities+=bonus.description.empty()?bonus.name:bonus.description;}
++ if(abilities.empty())abilities=mobileText("Нет особых способностей","No special abilities");
++ auto abilityText=mobilePanel->add<CTextBox>(1,abilities,Rect(16,44,pos.w-104,pos.h-104),0,FONT_MEDIUM,ETextAlignment::TOPLEFT);
++ if(abilityText->slider)
++ {
++  mobilePanel->add<CMobileTownButton>(1,Rect(pos.w-80,48,64,44),mobileText("Выше","Up"),[abilityText](){abilityText->slider->scrollBy(-80);});
++  mobilePanel->add<CMobileTownButton>(1,Rect(pos.w-80,100,64,44),mobileText("Ниже","Down"),[abilityText](){abilityText->slider->scrollBy(80);});
++ }
++ // Keep the original upgrade and dismissal confirmations and callbacks.
++ if(!info->popupWindow)
++ {
++  const int bw=112;int bx=pos.w-124;
++  mobilePanel->add<CMobileTownButton>(-1,Rect(bx,0,bw,44),mobileText("Закрыть","Close"),[this](){close();});
++  if(info->dismissInfo && info->dismissInfo->callback)
++   mobilePanel->add<CMobileTownButton>(0,Rect(144,pos.h-104,bw,44),mobileText("Уволить","Dismiss"),[this](){LOCPLINT->showYesNoDialog(CGI->generaltexth->allTexts[12],[this](){info->dismissInfo->callback();close();},nullptr);});
++  if(info->upgradeInfo && !info->upgradeInfo->info.getAvailableUpgrades().empty())
++   mobilePanel->add<CMobileTownButton>(0,Rect(268,pos.h-104,bw,44),mobileText("Улучшить","Upgrade"),[this](){
++    auto & upgrade=*info->upgradeInfo;TResources cost=upgrade.info.getAvailableUpgradeCosts().front()*info->creatureCount;
++    if(!LOCPLINT->cb->getResourceAmount().canAfford(cost)){LOCPLINT->showInfoDialog(CGI->generaltexth->allTexts[314]);return;}
++    LOCPLINT->showYesNoDialog(CGI->generaltexth->allTexts[207],[this](){auto & upgrade=*info->upgradeInfo;upgrade.callback(upgrade.info.getAvailableUpgrades().front());close();},nullptr);
++   });
++ }
++}
++void CStackWindow::requestMobileResize(){if(mobilePanel)mobilePanel->resize(this,[this](){setupMobile();});}
++void CStackWindow::onScreenResize(){if(mobilePanel)setupMobile();else CWindowObject::onScreenResize();}
++void CStackWindow::keyPressed(EShortcut key)
++{
++ if(mobilePanel && (key==EShortcut::GLOBAL_CANCEL || key==EShortcut::GLOBAL_RETURN)){close();return;}
++ CWindowObject::keyPressed(key);
+ }
+ 
+ void CStackWindow::initBonusesList()
+--- a/client/windows/CCreatureWindow.h
++++ b/client/windows/CCreatureWindow.h
+@@ -13,6 +13,7 @@
+ #include "../../lib/filesystem/ResourcePath.h"
+ #include "../widgets/MiscWidgets.h"
+ #include "CWindowObject.h"
++#include "CMessage.h"
+ 
+ VCMI_LIB_NAMESPACE_BEGIN
+ 
+@@ -33,6 +34,8 @@
+ class LRClickableArea;
+ class GraphicalPrimitiveCanvas;
+ 
++class CMobilePanel;
++
+ class CCommanderSkillIcon : public LRClickableAreaWText //TODO: maybe bring commander skill button initialization logic inside?
+ {
+ 	std::shared_ptr<CIntObject> object; // passive object that will be used to determine clickable area
+@@ -52,7 +55,7 @@
+ 	void show(Canvas &to) override;
+ };
+ 
+-class CStackWindow : public CWindowObject
++class CStackWindow : public CWindowObject, public IMobileWindow
+ {
+ 	struct BonusInfo
+ 	{
+@@ -159,6 +162,7 @@
+ 		std::array<std::string, 8> statFormats;
+ 	public:
+ 		MainSection(CStackWindow * owner, int yOffset, bool showExp, bool showArt);
++  std::vector<std::pair<std::string,std::string>> mobileStats() const;
+ 	};
+ 
+ 	std::shared_ptr<CArtPlace> stackArtifact;
+@@ -187,6 +191,8 @@
+ 
+ 	void removeStackArtifact(ArtifactPosition pos);
+ 
++ std::shared_ptr<CMobilePanel> mobilePanel;
++ void setupMobile();
+ 	void initSections();
+ 	void initBonusesList();
+ 
+@@ -210,5 +216,9 @@
+ 	CStackWindow(const CCommanderInstance * commander, bool popup);
+ 	CStackWindow(const CCommanderInstance * commander, std::vector<ui32> &skills, std::function<void(ui32)> callback);
+ 
++ bool isMobileDialog() const override {return bool(mobilePanel);}
++ void requestMobileResize() override;
++ void onScreenResize() override;
++ void keyPressed(EShortcut key) override;
+ 	~CStackWindow();
+ };

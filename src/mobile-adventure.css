@@ -37,3 +37,7 @@
 
 .mobile-play-time{grid-column:1/-1;color:#bdb39e;margin:0;font:14px system-ui}
 @media(max-height:430px){.mobile-pause-panel{gap:8px;padding:12px 20px}.mobile-pause-panel h2{font-size:20px;margin:0}.mobile-pause-panel button{min-height:46px;font-size:15px;padding:8px 14px}}
+
+#game.mobile-adventure-session,#game.mobile-adventure-session canvas{touch-action:none;overscroll-behavior:none}
+
+.mobile-adventure-bottom{padding-left:max(8px,env(safe-area-inset-left))}

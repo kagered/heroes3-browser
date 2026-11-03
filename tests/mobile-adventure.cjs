@@ -1,11 +1,11 @@
 const fs=require('fs'),vm=require('vm'),assert=require('assert/strict');
 const code=fs.readFileSync('src/mobile-adventure.js','utf8');
-function setup({coarse=false,query='',width=844,height=390,manifest=true,language='en',screenSize}={}) {
+function setup({coarse=false,query='',width=844,height=390,manifest=true,language='en',screenSize,userAgent='',maxTouchPoints=0}={}) {
  const buttons=[],elements=[],classes=new Set(),styles={},listeners={};let events=0;
  const game={width:844,height:600,style:{setProperty(k,v){styles[k]=v}},classList:{add(k){classes.add(k)},toggle(k,v){v?classes.add(k):classes.delete(k)}},append(){},addEventListener(){},focus(){}};
  const document={documentElement:{lang:language},getElementById(){return game},createElement(tag){const e={tagName:tag,getContext:tag==='canvas'?()=>({drawImage(){}}):undefined,toDataURL:()=>"data:image/jpeg;base64,test",dataset:{},children:[],classList:{toggle(){}},setAttribute(){},append(...children){this.children.push(...children)},prepend(){},addEventListener(){},focus(){},querySelector(){return buttons[0]},querySelectorAll(){return buttons.filter(b=>b.dataset.action)}};elements.push(e);if(tag==='button')buttons.push(e);return e}};
  const window={HEROES_MOBILE_ENGINE:manifest?{}:null,dispatchEvent(){events++},addEventListener(type,fn){listeners[type]=fn}};
- vm.runInNewContext(code,{window,document,URLSearchParams,location:{search:query},matchMedia:()=>({matches:coarse}),innerWidth:width,innerHeight:height,screen:screenSize,Event:class{}});
+ vm.runInNewContext(code,{window,document,URLSearchParams,location:{search:query},matchMedia:()=>({matches:coarse}),innerWidth:width,innerHeight:height,screen:screenSize,navigator:{userAgent,maxTouchPoints},Event:class{}});
  return {ui:window.HeroesMobileAdventure,buttons,elements,classes,events:()=>events,window,document,styles,listeners};
 }
 assert.equal(setup().ui.profile(),null,'desktop keeps original engine');
@@ -66,3 +66,7 @@ assert.equal(tabletOptions.mobileViewport.height,740,'fullscreen map follows usa
 assert.equal(tablet.styles['--mobile-top-inset'],'28px');assert.equal(tablet.styles['--mobile-start-inset'],'64px','dismiss affordance cannot cover first button');
 assert.equal(tablet.styles['--mobile-view-height'],'740px');
 console.log('PASS: tablet fullscreen backing allocation, live geometry and system-control insets');
+
+const ipad=setup({coarse:true,width:1024,height:768,userAgent:'Mozilla Macintosh Safari',maxTouchPoints:5});
+ipad.document.fullscreenElement={};ipad.ui.attach({},ipad.ui.profile());
+assert.equal(ipad.styles['--mobile-start-inset'],'96px','iPad fullscreen dismiss control has reserved space');
