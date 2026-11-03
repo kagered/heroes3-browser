@@ -161,3 +161,11 @@ The filename uses a real HTML input placed over the native field, so tapping it 
 ### iPad keyboard focus follow-up
 
 Dialog layer changes can occur when Safari shrinks its visual viewport for the keyboard. Closing an already-closed pause menu no longer focuses the canvas; focus returns to the game only after an actual pause-menu dismissal and never while the browser filename input is focused. The regression test simulates a keyboard-sized viewport and native-dialog layer changes, fails on the previous code, and passes with the fix. Physical iPad confirmation is still required.
+
+### Battle, long text and keyboard viewport follow-up
+
+Mobile battle clicks resolve the current pointer hex and update the legal action at click time. When a neighbouring enemy sprite overlaps the active stack's ground hex, its upper body provides a bounded alternate target; normal move/attack legality remains authoritative. This is a targeted overlap fix, not a full battle UI rewrite. Battle results replace the unsupported browser video area with an original-texture heading.
+
+Text-box resize updates the multiline label's actual visible rectangle. Overflowing mobile information dialogs retain all text and add 44-pixel up/down controls beside the existing scroll bar. The same layout serves both languages.
+
+The browser save-name field lives outside the rotating game container. While focused it stays upright at the visible viewport's top with a Done control, and keyboard resize does not resize the game. An explicit engine text-editing flag prevents innerHeight changes from shrinking native panels. Blur restores normal geometry. Tests cover focus, keyboard-sized viewport offsets, unchanged game viewport and ending text entry. Physical checks remain required for adjacent attacks, results, long-text scrolling and iPad keyboard visibility. Browser use is unavailable in this session.

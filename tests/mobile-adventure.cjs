@@ -2,8 +2,8 @@ const fs=require('fs'),vm=require('vm'),assert=require('assert/strict');
 const code=fs.readFileSync('src/mobile-adventure.js','utf8');
 function setup({coarse=false,query='',width=844,height=390,manifest=true,language='en',screenSize,userAgent='',maxTouchPoints=0}={}) {
  const timers=[],buttons=[],elements=[],classes=new Set(),styles={},listeners={};let events=0;
- const game={width:844,height:600,style:{setProperty(k,v){styles[k]=v}},classList:{add(k){classes.add(k)},toggle(k,v){v?classes.add(k):classes.delete(k)}},append(){},addEventListener(){},focus(){document.activeElement=game;}};
- const document={documentElement:{lang:language},getElementById(){return game},createElement(tag){const e={tagName:tag,getContext:tag==='canvas'?()=>({drawImage(){}}):undefined,toDataURL:()=>"data:image/jpeg;base64,test",dataset:{},style:{},blur(){if(document.activeElement===this)document.activeElement=null;},children:[],classList:{toggle(){}},setAttribute(){},append(...children){this.children.push(...children)},prepend(){},addEventListener(){},focus(){},querySelector(){return buttons[0]},querySelectorAll(){return buttons.filter(b=>b.dataset.action)}};elements.push(e);if(tag==='button')buttons.push(e);return e}};
+ const game={getBoundingClientRect(){return {left:0,top:0,right:width,bottom:height,width,height}},width:844,height:600,style:{setProperty(k,v){styles[k]=v}},classList:{add(k){classes.add(k)},toggle(k,v){v?classes.add(k):classes.delete(k)}},append(){},addEventListener(){},focus(){document.activeElement=game;}};
+ const document={body:{append(){}},documentElement:{lang:language},getElementById(){return game},createElement(tag){const e={tagName:tag,getContext:tag==='canvas'?()=>({drawImage(){}}):undefined,toDataURL:()=>"data:image/jpeg;base64,test",dataset:{},style:{},listeners:{},blur(){if(document.activeElement===this){document.activeElement=null;this.listeners.blur?.();}},children:[],classList:{toggle(){}},setAttribute(){},append(...children){this.children.push(...children)},prepend(){},addEventListener(type,fn){this.listeners[type]=fn;},focus(){document.activeElement=this;this.listeners.focus?.();},querySelector(){return buttons[0]},querySelectorAll(){return buttons.filter(b=>b.dataset.action)}};elements.push(e);if(tag==='button')buttons.push(e);return e}};
  const window={HEROES_MOBILE_ENGINE:manifest?{}:null,dispatchEvent(){events++},addEventListener(type,fn){listeners[type]=fn}};
  vm.runInNewContext(code,{window,document,URLSearchParams,location:{search:query},matchMedia:()=>({matches:coarse}),innerWidth:width,innerHeight:height,screen:screenSize,navigator:{userAgent,maxTouchPoints},Event:class{},setTimeout(fn){timers.push(fn);return timers.length},clearTimeout(){}});
  return {ui:window.HeroesMobileAdventure,buttons,elements,classes,events:()=>events,window,document,styles,listeners,timers};
@@ -102,8 +102,10 @@ console.log('PASS: browser save-name editing, Cyrillic, filtering, focus preserv
 
 const keyboard=setup({coarse:true,userAgent:'iPad Safari',maxTouchPoints:5});const keyboardModule={};keyboard.ui.attach(keyboardModule,keyboard.ui.profile());
 keyboard.ui.saveNameField(true,20,220,320,44,'New save');
-const keyboardInput=keyboard.elements.find(e=>e.className==='mobile-save-name');keyboard.document.activeElement=keyboardInput;
-keyboard.window.visualViewport={width:844,height:220};keyboard.listeners.resize();
+const keyboardInput=keyboard.elements.find(e=>e.className==='mobile-save-name');keyboardInput.focus();assert.equal(keyboardModule.mobileTextEditing,true);
+const beforeKeyboardHeight=keyboardModule.mobileViewport.height;keyboard.window.visualViewport={width:844,height:220,offsetTop:100,offsetLeft:0};keyboard.listeners.resize();
+assert.equal(keyboardModule.mobileViewport.height,beforeKeyboardHeight,"typing must not resize the game");
+assert.equal(keyboardInput.style.top,"112px","input stays in the visible keyboard viewport");
 keyboardModule.mobileAdventureState(false,0,false);
 assert.equal(keyboard.document.activeElement,keyboardInput,'keyboard viewport change must not focus the canvas');
 keyboardModule.mobileAdventureState(false,0,true);
@@ -111,3 +113,5 @@ assert.equal(keyboard.document.activeElement,keyboardInput,'native dialog reflow
 keyboard.ui.saveNameField(true,20,140,320,44,'New save');
 assert.equal(keyboard.document.activeElement,keyboardInput,'repositioning the browser field must preserve text focus');
 console.log('PASS: iPad keyboard resize and dialog-layer changes retain filename focus');
+
+keyboardInput.blur();assert.equal(keyboardModule.mobileTextEditing,false,"leaving the name field restores normal game layout");

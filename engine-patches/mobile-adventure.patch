@@ -330,7 +330,7 @@
  
  #include "../gui/CGuiHandler.h"
  #include "../render/CAnimation.h"
-@@ -212,8 +219,93 @@
+@@ -212,8 +219,101 @@
  	return 0;
  }
  
@@ -370,8 +370,8 @@
 +{
 +#ifdef VCMI_HTML5_BUILD
 + if(!isMobileSession())return Rect();
-+	int w = MAIN_THREAD_EM_ASM_INT({return Math.min(Module.mobileViewport.width,Math.max(innerWidth,innerHeight));});
-+	int h = MAIN_THREAD_EM_ASM_INT({return Math.min(Module.mobileViewport.height,Math.min(innerWidth,innerHeight));});
++	int w = MAIN_THREAD_EM_ASM_INT({return Module.mobileTextEditing?Module.mobileViewport.width:Math.min(Module.mobileViewport.width,Math.max(innerWidth,innerHeight));});
++	int h = MAIN_THREAD_EM_ASM_INT({return Module.mobileTextEditing?Module.mobileViewport.height:Math.min(Module.mobileViewport.height,Math.min(innerWidth,innerHeight));});
 +	return Rect(16,64,std::max(200,w-32),std::max(120,h-80));
 +#else
 +	return Rect();
@@ -401,6 +401,14 @@
 +		int reserved = 32 + (buttonHeight ? buttonHeight+12 : 0) + (!sideBySide && componentHeight ? componentHeight+12 : 0);
 +		int textBudget = std::max(32,mobileArea.h-reserved);
 +		ret->text->resize(Point(textWidth,textBudget));
++  ret->mobileTextScroll.clear();
++  if(ret->text->slider)
++  {
++   ret->text->resize(Point(textWidth-52,textBudget));
++   ObjectConstruction scope(ret);
++   ret->mobileTextScroll.push_back(std::make_shared<CMobileTownButton>(Rect(16+textWidth-44,16,44,44),"▲",[ret](){if(ret->text->slider)ret->text->slider->scrollBy(-60);}));
++   ret->mobileTextScroll.push_back(std::make_shared<CMobileTownButton>(Rect(16+textWidth-44,16+std::max(44,textBudget-44),44,44),"▼",[ret](){if(ret->text->slider)ret->text->slider->scrollBy(60);}));
++  }
 +		ret->text->trimToFit();
 +		if(ret->buttons.empty() && !ret->components) width=std::min(width,ret->text->pos.w+32);
 +		int contentHeight = sideBySide ? std::max(ret->text->pos.h,componentHeight) : ret->text->pos.h+(componentHeight ? componentHeight+12 : 0);
@@ -3120,3 +3128,113 @@
  
  	CSavingScreen();
  
+--- a/client/battle/BattleInterfaceClasses.cpp
++++ b/client/battle/BattleInterfaceClasses.cpp
+@@ -9,6 +9,7 @@
+  */
+ #include "StdInc.h"
+ #include "BattleInterfaceClasses.h"
++#include "../windows/MobileWindow.h"
+ 
+ #include "BattleInterface.h"
+ #include "BattleActionsController.h"
+@@ -841,7 +842,9 @@
+ 	auto resources = getResources(br);
+ 
+ 	description = std::make_shared<CTextBox>(resources.resultText.toString(), Rect(69, 203, 330, 68), 0, FONT_SMALL, ETextAlignment::CENTER, Colors::WHITE);
+-	videoPlayer = std::make_shared<VideoWidget>(Point(107, 70), resources.prologueVideo, resources.loopedVideo, false);
++	if(CMessage::isMobileSession())
++  mobileVideoFallback=std::make_shared<CMobileTownButton>(Rect(107,70,250,130),mobileText("Итоги сражения","Battle result"),[](){});
++ else videoPlayer = std::make_shared<VideoWidget>(Point(107, 70), resources.prologueVideo, resources.loopedVideo, false);
+ 
+ 	CCS->musich->playMusic(resources.musicName, false, true);
+ }
+--- a/client/battle/BattleFieldController.cpp
++++ b/client/battle/BattleFieldController.cpp
+@@ -9,6 +9,7 @@
+  */
+ #include "StdInc.h"
+ #include "BattleFieldController.h"
++#include "../windows/CMessage.h"
+ 
+ #include "BattleInterface.h"
+ #include "BattleWindow.h"
+@@ -199,6 +200,13 @@
+ 
+ void BattleFieldController::clickPressed(const Point & cursorPosition)
+ {
++ if(CMessage::isMobileSession())
++ {
++  hoveredHex=getHexAtPosition(cursorPosition);
++  currentAttackOriginPoint=cursorPosition;
++  if(hoveredHex!=BattleHex::INVALID)owner.actionsController->onHexHovered(hoveredHex);
++ }
++
+ 	BattleHex selectedHex = getHoveredHex();
+ 
+ 	if (selectedHex != BattleHex::INVALID)
+@@ -657,7 +665,25 @@
+ 			continue;
+ 
+ 		if (isPixelInHex(hoverPos - hexPosition.topLeft()))
+-			return h;
++  {
++   // A nearby enemy's upper sprite can overlap the active unit's ground hex.
++   auto active=owner.stacksController->getActiveStack();
++   if(CMessage::isMobileSession() && active && owner.getBattle()->battleGetStackByPos(h,true)==active)
++   {
++    const CStack * target=nullptr;int best=std::numeric_limits<int>::max();
++    for(auto enemy:owner.getBattle()->battleGetAllStacks())
++    {
++     if(!enemy->alive() || enemy->unitSide()==active->unitSide() || !enemy->getPosition().isValid())continue;
++     if(!active->getPosition().getAllNeighbouringTiles().contains(enemy->getPosition()))continue;
++     Rect body=hexPositionAbsolute(enemy->getPosition());body.y-=48;body.h+=48;
++     if(!body.isInside(hoverPos))continue;
++     auto delta=hoverPos-body.center();int distance=delta.x*delta.x+delta.y*delta.y;
++     if(distance<best){best=distance;target=enemy;}
++    }
++    if(target)return target->getPosition();
++   }
++   return h;
++  }
+ 	}
+ 
+ 	return BattleHex::INVALID;
+--- a/client/battle/BattleInterfaceClasses.h
++++ b/client/battle/BattleInterfaceClasses.h
+@@ -234,6 +234,7 @@
+ 	std::vector<std::shared_ptr<CAnimImage>> icons;
+ 	std::shared_ptr<CTextBox> description;
+ 	std::shared_ptr<VideoWidget> videoPlayer;
++ std::shared_ptr<CIntObject> mobileVideoFallback;
+ 	CPlayerInterface & owner;
+ 
+ 	BattleResultResources getResources(const BattleResult & br);
+--- a/client/windows/InfoWindows.h
++++ b/client/windows/InfoWindows.h
+@@ -30,6 +30,7 @@
+ class CComponentBox;
+ class CSelectableComponent;
+ class CTextBox;
++class CMobileTownButton;
+ class CButton;
+ class CFilledTexture;
+ class FilledTexturePlayerColored;
+@@ -46,6 +47,7 @@
+ 	QueryID ID; //for identification
+ 	std::shared_ptr<CFilledTexture> backgroundTexture;
+ 	std::shared_ptr<CTextBox> text;
++ std::vector<std::shared_ptr<CMobileTownButton>> mobileTextScroll;
+ 	std::shared_ptr<CComponentBox> components;
+ 	std::vector<std::shared_ptr<CButton>> buttons;
+ 
+--- a/client/widgets/TextControls.cpp
++++ b/client/widgets/TextControls.cpp
+@@ -405,6 +405,7 @@
+ 	label->pos.w = pos.w;
+ 	label->pos.h = pos.h;
+ 
++	label->setVisibleSize(Rect(0,0,newSize.x,newSize.y),false);
+ 	slider.reset();
+ 	setText(label->getText()); // force refresh
+ }

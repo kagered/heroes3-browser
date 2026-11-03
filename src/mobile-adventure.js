@@ -23,6 +23,7 @@
   }
   function updateGeometry() {
     if(!session)return;
+    if(saveNameInput && document.activeElement===saveNameInput){positionSaveNameInput();return;}
     const game=document.getElementById('game'), visual=window.visualViewport;
     const width=Math.round(visual?.width || innerWidth), height=Math.round(visual?.height || innerHeight);
     // Safari overlays its system status and dismissal controls in tablet fullscreen.
@@ -99,7 +100,23 @@
     actionNotice.classList.toggle('success',success);
     noticeTimer=setTimeout(()=>{actionNotice.hidden=true;},success?4000:5000);
   }
-  let saveNameInput;
+  let saveNameInput, saveNameDone, saveNameRect;
+  function positionSaveNameInput() {
+    if(!saveNameInput || !saveNameRect)return;
+    const editing=document.activeElement===saveNameInput;
+    const visual=window.visualViewport;
+    const game=document.getElementById('game');
+    const rect=game.getBoundingClientRect();
+    const [x,y,width,height]=saveNameRect;
+    if(editing) {
+      const top=(visual?.offsetTop||0)+12,left=(visual?.offsetLeft||0)+12;
+      Object.assign(saveNameInput.style,{left:left+'px',top:top+'px',width:Math.max(120,Math.min(560,(visual?.width||innerWidth)-110))+'px',height:'48px',transform:'none'});
+      Object.assign(saveNameDone.style,{left:left+Math.max(120,Math.min(560,(visual?.width||innerWidth)-110))+8+'px',top:top+'px'});
+    } else if(innerHeight>innerWidth) {
+      Object.assign(saveNameInput.style,{left:(rect.right-y)+'px',top:(rect.top+x)+'px',width:width+'px',height:height+'px',transform:'rotate(90deg)'});
+    } else Object.assign(saveNameInput.style,{left:(rect.left+x)+'px',top:(rect.top+y)+'px',width:width+'px',height:height+'px',transform:'none'});
+    saveNameDone.hidden=!editing;
+  }
   function saveNameField(visible,x,y,width,height,value) {
     if(!panel || !module)return;
     if(!visible){if(saveNameInput){saveNameInput.hidden=true;saveNameInput.blur();}return;}
@@ -114,10 +131,17 @@
         module.mobileSaveNameValue=saveNameInput.value;
       };
       saveNameInput.addEventListener('keydown',event=>{event.stopPropagation();if(event.key==='Enter' || event.key==='Escape'){event.preventDefault();saveNameInput.blur();}});
-      panel.append(saveNameInput);
+      saveNameDone=document.createElement('button');saveNameDone.type='button';saveNameDone.className='mobile-save-done';saveNameDone.textContent=text('Готово','Done');saveNameDone.hidden=true;
+      saveNameDone.onclick=()=>saveNameInput.blur();
+      saveNameInput.addEventListener('focus',()=>{module.mobileTextEditing=true;positionSaveNameInput();});
+      saveNameInput.addEventListener('blur',()=>{module.mobileTextEditing=false;saveNameDone.hidden=true;window.scrollTo?.(0,0);updateGeometry();positionSaveNameInput();});
+      document.body.append(saveNameInput,saveNameDone);
+      window.visualViewport?.addEventListener('scroll',positionSaveNameInput);
+      window.addEventListener('scroll',positionSaveNameInput);
+
     }
     saveNameInput.hidden=false;
-    Object.assign(saveNameInput.style,{left:x+'px',top:y+'px',width:width+'px',height:height+'px'});
+    saveNameRect=[x,y,width,height];positionSaveNameInput();
     if(document.activeElement!==saveNameInput && saveNameInput.value!==value)saveNameInput.value=value;
   }
   function displayButton() {
