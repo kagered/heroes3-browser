@@ -149,3 +149,10 @@ Save/load has paged 44-pixel file rows, folder navigation, selection feedback, a
 In-game scenario information uses Scenario, Players and Rules pages. It remains read-only, as in the original screen; player colors, control type, starting town, hero and bonus are shown without changing the party. New-game lobby customization is outside this change.
 
 Validation: full pinned Emscripten build and required `ninja -j32 html5`, public JavaScript/Python checks and patch application checks. Interactive browser verification is unavailable in this session because Browser use is disabled by the app. Physical iPad verification of spell casting/descriptions, save/overwrite/load, folder paging, close/return-to-map and orientation remains required. Production and the original desktop engine are not replaced.
+
+
+### Mobile save-screen follow-up
+
+Saving now lists all readable saves independently of the lobby guest flag and tutorial/campaign load-mode filter; loading retains its original compatibility filtering. The current scenario metadata is retained separately from file selection, including an empty list. The mobile Scenario tab describes the active party rather than the selected destination file.
+
+The filename uses a real HTML input placed over the native field, so tapping it is a browser input gesture on iPad. It preserves focused edits across redraws, filters the same forbidden filename characters, transfers text before Save, and hides/loses focus over confirmations, other pages and after closing the screen. Cyrillic, filtering, selection/focus preservation and dismissal have automated checks. Actual iPad keyboard and full save/reload behavior still need physical verification; Browser use remains unavailable.

@@ -3,7 +3,7 @@ const code=fs.readFileSync('src/mobile-adventure.js','utf8');
 function setup({coarse=false,query='',width=844,height=390,manifest=true,language='en',screenSize,userAgent='',maxTouchPoints=0}={}) {
  const timers=[],buttons=[],elements=[],classes=new Set(),styles={},listeners={};let events=0;
  const game={width:844,height:600,style:{setProperty(k,v){styles[k]=v}},classList:{add(k){classes.add(k)},toggle(k,v){v?classes.add(k):classes.delete(k)}},append(){},addEventListener(){},focus(){}};
- const document={documentElement:{lang:language},getElementById(){return game},createElement(tag){const e={tagName:tag,getContext:tag==='canvas'?()=>({drawImage(){}}):undefined,toDataURL:()=>"data:image/jpeg;base64,test",dataset:{},children:[],classList:{toggle(){}},setAttribute(){},append(...children){this.children.push(...children)},prepend(){},addEventListener(){},focus(){},querySelector(){return buttons[0]},querySelectorAll(){return buttons.filter(b=>b.dataset.action)}};elements.push(e);if(tag==='button')buttons.push(e);return e}};
+ const document={documentElement:{lang:language},getElementById(){return game},createElement(tag){const e={tagName:tag,getContext:tag==='canvas'?()=>({drawImage(){}}):undefined,toDataURL:()=>"data:image/jpeg;base64,test",dataset:{},style:{},blur(){if(document.activeElement===this)document.activeElement=null;},children:[],classList:{toggle(){}},setAttribute(){},append(...children){this.children.push(...children)},prepend(){},addEventListener(){},focus(){},querySelector(){return buttons[0]},querySelectorAll(){return buttons.filter(b=>b.dataset.action)}};elements.push(e);if(tag==='button')buttons.push(e);return e}};
  const window={HEROES_MOBILE_ENGINE:manifest?{}:null,dispatchEvent(){events++},addEventListener(type,fn){listeners[type]=fn}};
  vm.runInNewContext(code,{window,document,URLSearchParams,location:{search:query},matchMedia:()=>({matches:coarse}),innerWidth:width,innerHeight:height,screen:screenSize,navigator:{userAgent,maxTouchPoints},Event:class{},setTimeout(fn){timers.push(fn);return timers.length},clearTimeout(){}});
  return {ui:window.HeroesMobileAdventure,buttons,elements,classes,events:()=>events,window,document,styles,listeners,timers};
@@ -84,3 +84,18 @@ ipadWindowed.buttons.find(b=>b.textContent==='Screen ⛶').onclick();
 assert.equal(ipadWindowed.elements.find(e=>e.className==='mobile-display-help').hidden,false,'Screen explains Safari limitations on iPad');
 ipadWindowed.buttons.find(b=>b.textContent==='Enter fullscreen').onclick();
 assert.equal(fullscreenCalls,1,'iPad still supports explicit fullscreen opt-in');
+
+const names=setup({coarse:true});const namesModule={};names.ui.attach(namesModule,names.ui.profile());
+names.ui.saveNameField(true,20,220,320,44,'Old save');
+const nameField=names.elements.find(e=>e.className==='mobile-save-name');
+assert.equal(nameField.tagName,'input');assert.equal(nameField.value,'Old save');
+assert.equal(nameField.style.top,'220px');
+names.document.activeElement=nameField;nameField.value='Новая партия';nameField.oninput();
+names.ui.saveNameField(true,20,220,320,44,'Old save');
+assert.equal(nameField.value,'Новая партия','engine state must not erase typing while field is focused');
+assert.equal(namesModule.mobileSaveNameValue,'Новая партия');
+nameField.value='bad/name:*?';nameField.oninput();assert.equal(namesModule.mobileSaveNameValue,'badname');
+names.ui.saveNameField(false);assert.equal(nameField.hidden,true);assert.equal(names.document.activeElement,null);
+names.document.activeElement=null;names.ui.saveNameField(true,20,220,320,44,'Selected existing save');assert.equal(nameField.value,'Selected existing save');
+namesModule.mobileAdventureState(true,0xffff);assert.equal(nameField.hidden,true,'return to map hides browser save field');
+console.log('PASS: browser save-name editing, Cyrillic, filtering, focus preservation and dismissal');

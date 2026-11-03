@@ -80,6 +80,7 @@
     if(!panel)return;
     if(!initialized || active!==value || mapOverlay!==overlay || popup!==isPopup) {
       initialized=true;active=value;mapOverlay=overlay;popup=isPopup;
+      if(active)saveNameField(false);
       const game=document.getElementById('game');game.classList.toggle('mobile-adventure-active',active || mapOverlay);
       game.scrollTop=0;game.scrollLeft=0;
       mapTop.hidden=!(active || popup);bottom.hidden=!(active || popup);dialogTop.hidden=active || popup;
@@ -98,11 +99,32 @@
     actionNotice.classList.toggle('success',success);
     noticeTimer=setTimeout(()=>{actionNotice.hidden=true;},success?4000:5000);
   }
+  let saveNameInput;
+  function saveNameField(visible,x,y,width,height,value) {
+    if(!panel || !module)return;
+    if(!visible){if(saveNameInput){saveNameInput.hidden=true;saveNameInput.blur();}return;}
+    if(!saveNameInput) {
+      saveNameInput=document.createElement('input');saveNameInput.type='text';
+      saveNameInput.className='mobile-save-name';saveNameInput.maxLength=240;
+      saveNameInput.autocomplete='off';saveNameInput.spellcheck=false;
+      saveNameInput.setAttribute('autocapitalize','off');
+      saveNameInput.setAttribute('aria-label',text('Имя сохранения','Save name'));
+      saveNameInput.oninput=()=>{
+        saveNameInput.value=saveNameInput.value.replace(/[<>:"/\\|?*\r\n]/g,'');
+        module.mobileSaveNameValue=saveNameInput.value;
+      };
+      saveNameInput.addEventListener('keydown',event=>{event.stopPropagation();if(event.key==='Enter' || event.key==='Escape'){event.preventDefault();saveNameInput.blur();}});
+      panel.append(saveNameInput);
+    }
+    saveNameInput.hidden=false;
+    Object.assign(saveNameInput.style,{left:x+'px',top:y+'px',width:width+'px',height:height+'px'});
+    if(document.activeElement!==saveNameInput && saveNameInput.value!==value)saveNameInput.value=value;
+  }
   function displayButton() {
     const b=document.createElement('button');b.type='button';b.textContent=text('Экран ⛶','Screen ⛶');b.onclick=()=>{if(isIPad() && !navigator.standalone && !document.fullscreenElement)screenHelp.hidden=false;else void fullscreen();};return b;
   }
   window.HeroesMobileAdventure = {
-    get active(){return active;},get session(){return session;},send,profile,remapPoint,notify,
+    get active(){return active;},get session(){return session;},send,profile,remapPoint,notify,saveNameField,
     prepareDisplay(){if(touchDevice && !isIPad() && profile())void fullscreen(false);},
     attach(options,viewport) {
       module=options;session=true;

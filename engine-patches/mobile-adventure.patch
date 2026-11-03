@@ -2619,7 +2619,15 @@
  };
 --- a/client/lobby/CSavingScreen.cpp
 +++ b/client/lobby/CSavingScreen.cpp
-@@ -43,6 +43,7 @@
+@@ -35,6 +35,7 @@
+ 	localMi = std::make_shared<CMapInfo>();
+ 	localMi->mapHeader = std::unique_ptr<CMapHeader>(new CMapHeader(*LOCPLINT->cb->getMapHeader()));
+ 
++ currentMi=localMi;
+ 	tabSel = std::make_shared<SelectionTab>(screenType);
+ 	tabSel->callOnSelect = std::bind(&CSavingScreen::changeSelection, this, _1);
+ 	tabSel->toggleMode();
+@@ -43,16 +44,18 @@
  	buttonStart = std::make_shared<CButton>(Point(411, 535), AnimationPath::builtin("SCNRSAV.DEF"), CGI->generaltexth->zelp[103], std::bind(&CSavingScreen::saveGame, this), EShortcut::LOBBY_SAVE_GAME);
  	
  	LOCPLINT->gamePause(true);
@@ -2627,6 +2635,19 @@
  }
  
  const CMapInfo * CSavingScreen::getMapInfo()
+ {
+-	return localMi.get();
++	return CMessage::isMobileSession()?currentMi.get():localMi.get();
+ }
+ 
+ const StartInfo * CSavingScreen::getStartInfo()
+ {
+-	if (localMi)
++	if (CMessage::isMobileSession())return LOCPLINT->cb->getStartInfo();
++	if (localMi && localMi->scenarioOptionsOfSave)
+ 		return localMi->scenarioOptionsOfSave;
+ 	return LOCPLINT->cb->getStartInfo();
+ }
 --- a/client/lobby/OptionsTab.h
 +++ b/client/lobby/OptionsTab.h
 @@ -19,6 +19,7 @@
@@ -2656,7 +2677,7 @@
  
  VCMI_LIB_NAMESPACE_BEGIN
  
-@@ -57,9 +59,20 @@
+@@ -57,9 +59,21 @@
  };
  
  /// The actual map selection screen which consists of the options and selection tab
@@ -2670,6 +2691,7 @@
 + int mobileSection=0;
 + std::string mobileSignature;
 + std::string selectionSignature() const;
++ void syncMobileSaveName();
 +public:
 + void setupMobile();
 + bool isMobileDialog() const override {return bool(mobilePanel);}
@@ -2680,17 +2702,28 @@
  	std::shared_ptr<InfoCard> card;
  
  	std::shared_ptr<CButton> buttonSelect;
+@@ -79,6 +93,7 @@
+ 	std::shared_ptr<CIntObject> curTab;
+ 
+ 	CSelectionBase(ESelectionScreen type);
++ ~CSelectionBase() override;
+ 	virtual void toggleTab(std::shared_ptr<CIntObject> tab);
+ };
+ 
 --- a/client/lobby/CSelectionBase.cpp
 +++ b/client/lobby/CSelectionBase.cpp
-@@ -10,6 +10,7 @@
+@@ -10,6 +10,10 @@
  #include "StdInc.h"
  
  #include "CSelectionBase.h"
++#ifdef VCMI_HTML5_BUILD
++#include <emscripten.h>
++#endif
 +#include "../windows/MobileWindow.h"
  #include "CBonusSelection.h"
  #include "CLobbyScreen.h"
  #include "OptionsTab.h"
-@@ -600,3 +601,76 @@
+@@ -600,3 +604,117 @@
  	background->scaleTo(Point(pos.w, pos.h));
  	center();
  }
@@ -2723,12 +2756,11 @@
 + if(screenType==ESelectionScreen::saveGame && tabSel->inputName)
 + {
 +  tabSel->inputName->removeFocus();
-+  auto input=mobilePanel->add<CTextInput>(0,Rect(12,bottom,nameWidth,44),FONT_MEDIUM,ETextAlignment::CENTERLEFT,false);
-+  mobilePanel->painters.push_back([this,nameWidth,bottom](Canvas & to){to.drawBorder(Rect(pos.x+12,pos.y+bottom,nameWidth,44),Colors::METALLIC_GOLD);});
-+  input->setText(tabSel->inputName->getText());input->setFilterFilename();
-+  input->setCallback([this](const std::string & value){tabSel->inputName->setText(value);});
++  auto input=mobilePanel->add<CMobileTownButton>(0,Rect(12,bottom,nameWidth,44),tabSel->inputName->getText(),[](){});
++  mobilePanel->painters.push_back([this,nameWidth,bottom](Canvas & to){if(mobileSection==0)to.drawBorder(Rect(pos.x+12,pos.y+bottom,nameWidth,44),Colors::METALLIC_GOLD);});
++  mobilePanel->refreshers.push_back([this,input](){input->setText(tabSel->inputName->getText());});
 + }
-+ auto submit=mobilePanel->add<CMobileTownButton>(0,Rect(pos.w-200,bottom,188,44),screenType==ESelectionScreen::saveGame?mobileText("Сохранить","Save"):mobileText("Загрузить","Load"),[this,invoke](){invoke(buttonStart);} );
++ auto submit=mobilePanel->add<CMobileTownButton>(0,Rect(pos.w-200,bottom,188,44),screenType==ESelectionScreen::saveGame?mobileText("Сохранить","Save"):mobileText("Загрузить","Load"),[this,invoke](){syncMobileSaveName();invoke(buttonStart);} );
 + mobilePanel->refreshers.push_back([this,submit](){submit->setAvailable(buttonStart && !buttonStart->isBlocked() && (screenType!=ESelectionScreen::saveGame || (tabSel->inputName && !tabSel->inputName->getText().empty())));});
 + mobilePanel->add<CMobileTownButton>(-1,Rect(pos.w-132,0,120,36),mobileText("Закрыть","Close"),[this,invoke](){invoke(buttonBack);});
 + for(int row=0;row<rowCount;++row)
@@ -2737,7 +2769,12 @@
 +  auto item=tabSel->curItems[index];
 +  std::string title=item->isFolder?"[ "+item->folderName+" ]":item->name;
 +  if(title.empty())title=item->getNameTranslated();
-+  auto button=mobilePanel->add<CMobileTownButton>(0,Rect(12,42+row*48,pos.w-24,44),title,[this,index,item](){tabSel->selectAbs(index);if(item->isFolder)mobilePage=0;setupMobile();});
++  auto button=mobilePanel->add<CMobileTownButton>(0,Rect(12,42+row*48,pos.w-24,44),title,[this,index,item](){
++   syncMobileSaveName();
++#ifdef VCMI_HTML5_BUILD
++   MAIN_THREAD_EM_ASM({if(window.HeroesMobileAdventure && window.HeroesMobileAdventure.saveNameField)window.HeroesMobileAdventure.saveNameField(false);});
++#endif
++   tabSel->selectAbs(index);if(item->isFolder)mobilePage=0;setupMobile();});
 +  button->setSelected(index==tabSel->selectionPos && !item->isFolder);
 + }
 + if(tabSel->curItems.empty())mobilePanel->add<CLabel>(0,pos.w/2,70,FONT_MEDIUM,ETextAlignment::CENTER,Colors::WHITE,mobileText("Нет сохранений","No saved games"));
@@ -2755,9 +2792,10 @@
 + GH.windows().totalRedraw();
 +}
 +void CSelectionBase::requestMobileResize(){if(mobilePanel)mobilePanel->resize(this,[this](){setupMobile();});}
-+void CSelectionBase::showAll(Canvas & to){if(mobilePanel)mobilePanel->showAll(to);else CWindowObject::showAll(to);}
++void CSelectionBase::showAll(Canvas & to){syncMobileSaveName();if(mobilePanel)mobilePanel->showAll(to);else CWindowObject::showAll(to);}
 +void CSelectionBase::show(Canvas & to)
 +{
++ syncMobileSaveName();
 + if(mobilePanel){if(mobileSignature!=selectionSignature())setupMobile();for(auto child:children)if(child!=mobilePanel.get())child->disable();mobilePanel->show(to);}else CWindowObject::show(to);
 +}
 +
@@ -2765,7 +2803,43 @@
 +{
 + if(!mobilePanel)return;
 + auto button=key==EShortcut::GLOBAL_CANCEL?buttonBack:key==EShortcut::GLOBAL_RETURN?buttonStart:nullptr;
-+ if(button && !button->isBlocked()){button->clickPressed(button->pos.center());button->clickReleased(button->pos.center());}
++ if(button && !button->isBlocked()){syncMobileSaveName();button->clickPressed(button->pos.center());button->clickReleased(button->pos.center());}
++}
++
++void CSelectionBase::syncMobileSaveName()
++{
++#ifdef VCMI_HTML5_BUILD
++ if(!mobilePanel || screenType!=ESelectionScreen::saveGame || !tabSel || !tabSel->inputName)return;
++ bool visible=GH.windows().isTopWindow(this) && mobileSection==0;
++ if(visible)
++ {
++  std::array<char,1024> buffer{};
++  int changed=MAIN_THREAD_EM_ASM_INT({
++   const value=Module.mobileSaveNameValue;
++   if(typeof value!=='string')return 0;
++   stringToUTF8(value,$0,$1);delete Module.mobileSaveNameValue;return 1;
++  },buffer.data(),buffer.size());
++  if(changed)
++  {
++   std::string value(buffer.data());
++   const std::string forbidden="<>:\"/\\|?*\r\n";
++   value.erase(std::remove_if(value.begin(),value.end(),[&](char c){return forbidden.find(c)!=std::string::npos;}),value.end());
++   tabSel->inputName->setText(value);
++  }
++ }
++ const std::string value=tabSel->inputName->getText();
++ MAIN_THREAD_EM_ASM({
++  if(window.HeroesMobileAdventure && window.HeroesMobileAdventure.saveNameField)
++   window.HeroesMobileAdventure.saveNameField(!!$0,$1,$2,$3,44,UTF8ToString($4));
++ },visible,pos.x+12,pos.y+pos.h-104,pos.w-220,value.c_str());
++#endif
++}
++CSelectionBase::~CSelectionBase()
++{
++#ifdef VCMI_HTML5_BUILD
++ if(mobilePanel && screenType==ESelectionScreen::saveGame)
++  MAIN_THREAD_EM_ASM({delete Module.mobileSaveNameValue;if(window.HeroesMobileAdventure && window.HeroesMobileAdventure.saveNameField)window.HeroesMobileAdventure.saveNameField(false);});
++#endif
 +}
 --- a/client/lobby/CLobbyScreen.cpp
 +++ b/client/lobby/CLobbyScreen.cpp
@@ -2876,6 +2950,15 @@
  #include "CSelectionBase.h"
  #include "CLobbyScreen.h"
  
+@@ -263,7 +264,7 @@
+ {
+ 	allItems.clear();
+ 	curItems.clear();
+-	if(CSH->isGuest())
++	if(CSH->isGuest() && !(CMessage::isMobileSession() && tabType==ESelectionScreen::saveGame))
+ 	{
+ 		if(slider)
+ 			slider->block(true);
 @@ -667,7 +668,7 @@
  
  	rememberCurrentSelection();
@@ -2885,6 +2968,14 @@
  	{
  		auto filename = *CResourceHandler::get()->getResourceName(ResourcePath(curItems[py]->fileURI, EResType::SAVEGAME));
  		inputName->setText(filename.stem().string());
+@@ -895,6 +896,7 @@
+ 			bool isCampaign = mapInfo->scenarioOptionsOfSave->mode == EStartMode::CAMPAIGN;
+ 			bool isMultiplayer = mapInfo->amountOfHumanPlayersInSave > 1;
+ 			bool isTutorial = boost::to_upper_copy(mapInfo->scenarioOptionsOfSave->mapname) == "MAPS/TUTORIAL";
++			if(!(CMessage::isMobileSession() && tabType==ESelectionScreen::saveGame))
+ 			switch(CSH->getLoadMode())
+ 			{
+ 			case ELoadMode::SINGLE:
 --- a/client/windows/CSpellWindow.h
 +++ b/client/windows/CSpellWindow.h
 @@ -10,6 +10,8 @@
@@ -3019,3 +3110,13 @@
 +}
 +void CSpellWindow::requestMobileResize(){if(mobilePanel)mobilePanel->resize(this,[this](){setupMobile();},460);}
 +void CSpellWindow::showAll(Canvas & to){if(mobilePanel)mobilePanel->showAll(to);else CWindowObject::showAll(to);}
+--- a/client/lobby/CSavingScreen.h
++++ b/client/lobby/CSavingScreen.h
+@@ -24,6 +24,7 @@
+ {
+ public:
+ 	std::shared_ptr<CMapInfo> localMi;
++ std::shared_ptr<CMapInfo> currentMi;
+ 
+ 	CSavingScreen();
+ 
