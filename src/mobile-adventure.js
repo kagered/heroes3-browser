@@ -4,7 +4,8 @@
   const force = new URLSearchParams(location.search).get('mobile-map');
   const touchDevice=matchMedia('(any-pointer: coarse)').matches;
   const eligible = force !== 'off' && (force === '1' || touchDevice);
-  let module, panel, mapTop, dialogTop, bottom, screenHelp, active=false, mapOverlay=false, session=false, initialized=false, lastMask=-1, popup=false, heroHud, heroLabel, heroName, heroPoints, heroMeter, heroHint, pausePanel, pauseOpen=false, lastHeroKey="";
+  let actionNotice, noticeTimer, module, panel, mapTop, dialogTop, bottom, screenHelp, active=false, mapOverlay=false, session=false, initialized=false, lastMask=-1, popup=false, heroHud, heroLabel, heroName, heroPoints, heroMeter, heroHint, pausePanel, pauseOpen=false, lastHeroKey="";
+  const isIPad=()=>typeof navigator!=='undefined' && (/iPad/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints>1));
   const en = () => document.documentElement.lang === 'en';
   const text = (ru,english) => en()?english:ru;
   const actions = [[12,'К герою','Center hero'],[11,'Королевство','Kingdom'],[7,'Уровень','Layer'],[9,'+','+'],[10,'−','−'],[1,'Герой','Hero'],[2,'Следующий','Next hero'],[3,'Город','Town'],[8,'Двигаться','Move'],[4,'Магия','Spells'],[5,'Конец хода','End turn'],[6,'Меню','Menu']];
@@ -25,7 +26,7 @@
     const game=document.getElementById('game'), visual=window.visualViewport;
     const width=Math.round(visual?.width || innerWidth), height=Math.round(visual?.height || innerHeight);
     // Safari overlays its system status and dismissal controls in tablet fullscreen.
-    const ipad=typeof navigator!=='undefined' && (/iPad/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints>1));
+    const ipad=isIPad();
     const inset=touchDevice && document.fullscreenElement ? 28 : 0;
     const view={width:Math.max(width,height),height:Math.min(width,height)-inset};
     game.style.setProperty('--mobile-top-inset',inset+'px');
@@ -91,12 +92,18 @@
       for(const button of panel.querySelectorAll('button[data-action]'))button.disabled=!(mask&(1<<(Number(button.dataset.action)-1)));
     }
   }
+  function notify(message,success=false) {
+    if(!actionNotice)return;
+    clearTimeout(noticeTimer);actionNotice.textContent=message;actionNotice.hidden=false;
+    actionNotice.classList.toggle('success',success);
+    noticeTimer=setTimeout(()=>{actionNotice.hidden=true;},success?4000:5000);
+  }
   function displayButton() {
-    const b=document.createElement('button');b.type='button';b.textContent=text('Экран ⛶','Screen ⛶');b.onclick=()=>fullscreen();return b;
+    const b=document.createElement('button');b.type='button';b.textContent=text('Экран ⛶','Screen ⛶');b.onclick=()=>{if(isIPad() && !navigator.standalone && !document.fullscreenElement)screenHelp.hidden=false;else void fullscreen();};return b;
   }
   window.HeroesMobileAdventure = {
-    get active(){return active;},get session(){return session;},send,profile,remapPoint,
-    prepareDisplay(){if(touchDevice && profile())void fullscreen(false);},
+    get active(){return active;},get session(){return session;},send,profile,remapPoint,notify,
+    prepareDisplay(){if(touchDevice && !isIPad() && profile())void fullscreen(false);},
     attach(options,viewport) {
       module=options;session=true;
       options.mobileAdventureUI=true;options.mobileViewport=viewport;
@@ -130,9 +137,10 @@
       dialogTop.append(back,displayButton(),home);
       screenHelp=document.createElement('div');screenHelp.className='mobile-display-help';screenHelp.hidden=true;
       screenHelp.setAttribute('role','dialog');screenHelp.setAttribute('aria-modal','false');
-      const info=document.createElement('p');info.textContent=text('В Safari жест выхода из полного экрана управляется системой. Для игры без этой кнопки и жеста: в Safari нажми «Поделиться» → «На экран Домой», затем открой игру через появившийся значок. Это запуск сайта, без отдельного приложения.','Safari controls its fullscreen exit gesture. To play without that button and gesture: in Safari choose Share → Add to Home Screen, then launch the game from that icon. This opens the website without a separate app.');
+      const info=document.createElement('p');info.textContent=text('Safari может выйти из полного экрана при свайпе — сайт не может отключить этот системный жест. Поэтому на iPad игра открывается без автоматического перехода в полный экран. Для игры без панелей Safari: «Поделиться» → «На экран Домой», затем открой игру через появившийся значок. Или включи полный экран кнопкой ниже.','Safari may leave fullscreen when you swipe; websites cannot disable that system gesture. On iPad the game therefore starts without automatic fullscreen. To play without Safari bars, choose Share → Add to Home Screen, then open the game from that icon. You can also enter fullscreen below.');
+      const enter=document.createElement('button');enter.type='button';enter.textContent=text('Войти в полный экран','Enter fullscreen');enter.onclick=()=>{screenHelp.hidden=true;void fullscreen();};
       const close=document.createElement('button');close.type='button';close.textContent=text('Понятно','Got it');close.onclick=()=>{screenHelp.hidden=true;};
-      screenHelp.append(info,close);
+      screenHelp.append(info,enter,close);
       pausePanel=document.createElement('section');pausePanel.className='mobile-pause-panel';pausePanel.hidden=true;
       pausePanel.setAttribute('role','dialog');pausePanel.setAttribute('aria-modal','true');pausePanel.setAttribute('aria-label',text('Меню игры','Game menu'));
       const title=document.createElement('h2');title.textContent=text('Пауза','Game menu');pausePanel.append(title);
@@ -154,7 +162,8 @@
           else if(!event.shiftKey && document.activeElement===last){event.preventDefault();first.focus();}
         }
       });
-      panel.append(mapTop,dialogTop,bottom,screenHelp,pausePanel);game.append(panel);
+      actionNotice=document.createElement('div');actionNotice.className='mobile-action-notice';actionNotice.hidden=true;actionNotice.setAttribute('role','status');actionNotice.setAttribute('aria-live','polite');actionNotice.setAttribute('aria-atomic','true');
+      panel.append(mapTop,dialogTop,bottom,screenHelp,pausePanel,actionNotice);game.append(panel);
       // SDL derives mouse coordinates from the canvas bounding rectangle, which
       // contains swapped axes when the landscape surface is rotated in portrait.
       // Cancel page scrolling only inside the game surface. Safari's own

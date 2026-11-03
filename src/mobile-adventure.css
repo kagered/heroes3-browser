@@ -41,3 +41,7 @@
 #game.mobile-adventure-session,#game.mobile-adventure-session canvas{touch-action:none;overscroll-behavior:none}
 
 .mobile-adventure-bottom{padding-left:max(8px,env(safe-area-inset-left))}
+
+.mobile-action-notice{position:absolute;bottom:76px;left:50%;transform:translateX(-50%);z-index:15;max-width:calc(100% - 32px);padding:12px 20px;border:1px solid #d1af6d;border-radius:8px;background:#332c1bf5;color:#ffe9b7;font:600 16px/1.4 system-ui;box-shadow:0 4px 24px #0008;pointer-events:none;text-align:center}
+.mobile-action-notice.success{background:#183422f5;border-color:#85c49b;color:#d0f5dc}
+.mobile-display-help button+button{margin-left:10px}

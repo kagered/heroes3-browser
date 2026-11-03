@@ -130,3 +130,11 @@ The installer writes all four mobile engine files under a content-derived `vendo
 ### Army selection feedback
 
 Native garrison slots draw a high-contrast selection border from the actual garrison selection, independent of the classic overlay sprite. Changing or clearing selection repaints the slot. Formation displays the current authoritative tight/loose value and refreshes after the engine applies the change; its effect is the initial placement of stacks in battle. Larger army panels include this explanation. Desktop visuals and formation callbacks remain unchanged.
+
+### Mobile adventure v10
+
+Construction and build confirmations use content-sized, vertically centered windows; the thieves guild is capped at 360 logical pixels high. Construction uses compact rows with the original building previews, precise state labels and Previous/Next pagination. The original building click handlers, prices and restrictions remain authoritative. The thieves guild uses Kingdoms, Resources, Power and Leaders pages, with large controls for additional ranks and players. It only displays the information returned by the original thieves-guild callback, including unknown values.
+
+All native buttons briefly illuminate on press. Individual-dwelling recruitment now includes adventure-map dwellings (level -1), uses a single visible creature choice with Previous/Next variant controls, disables zero-quantity purchases, and displays a request notice. A green confirmation follows an observed stock reduction while the recruitment window remains open. An initial request notice alone does not claim server acceptance.
+
+iPad browser sessions no longer request fullscreen automatically. Screen explains Safari's system gesture and offers explicit fullscreen opt-in, or Add to Home Screen for a standalone launch. Other touch devices retain their previous behavior. Page gestures remain suppressed over the game surface; the website cannot suppress Safari or iPadOS system gestures.

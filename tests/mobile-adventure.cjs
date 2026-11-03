@@ -1,12 +1,12 @@
 const fs=require('fs'),vm=require('vm'),assert=require('assert/strict');
 const code=fs.readFileSync('src/mobile-adventure.js','utf8');
 function setup({coarse=false,query='',width=844,height=390,manifest=true,language='en',screenSize,userAgent='',maxTouchPoints=0}={}) {
- const buttons=[],elements=[],classes=new Set(),styles={},listeners={};let events=0;
+ const timers=[],buttons=[],elements=[],classes=new Set(),styles={},listeners={};let events=0;
  const game={width:844,height:600,style:{setProperty(k,v){styles[k]=v}},classList:{add(k){classes.add(k)},toggle(k,v){v?classes.add(k):classes.delete(k)}},append(){},addEventListener(){},focus(){}};
  const document={documentElement:{lang:language},getElementById(){return game},createElement(tag){const e={tagName:tag,getContext:tag==='canvas'?()=>({drawImage(){}}):undefined,toDataURL:()=>"data:image/jpeg;base64,test",dataset:{},children:[],classList:{toggle(){}},setAttribute(){},append(...children){this.children.push(...children)},prepend(){},addEventListener(){},focus(){},querySelector(){return buttons[0]},querySelectorAll(){return buttons.filter(b=>b.dataset.action)}};elements.push(e);if(tag==='button')buttons.push(e);return e}};
  const window={HEROES_MOBILE_ENGINE:manifest?{}:null,dispatchEvent(){events++},addEventListener(type,fn){listeners[type]=fn}};
- vm.runInNewContext(code,{window,document,URLSearchParams,location:{search:query},matchMedia:()=>({matches:coarse}),innerWidth:width,innerHeight:height,screen:screenSize,navigator:{userAgent,maxTouchPoints},Event:class{}});
- return {ui:window.HeroesMobileAdventure,buttons,elements,classes,events:()=>events,window,document,styles,listeners};
+ vm.runInNewContext(code,{window,document,URLSearchParams,location:{search:query},matchMedia:()=>({matches:coarse}),innerWidth:width,innerHeight:height,screen:screenSize,navigator:{userAgent,maxTouchPoints},Event:class{},setTimeout(fn){timers.push(fn);return timers.length},clearTimeout(){}});
+ return {ui:window.HeroesMobileAdventure,buttons,elements,classes,events:()=>events,window,document,styles,listeners,timers};
 }
 assert.equal(setup().ui.profile(),null,'desktop keeps original engine');
 assert.equal(setup({coarse:true,width:390,height:844}).ui.profile().width,844,'portrait starts the same landscape layout');
@@ -70,3 +70,17 @@ console.log('PASS: tablet fullscreen backing allocation, live geometry and syste
 const ipad=setup({coarse:true,width:1024,height:768,userAgent:'Mozilla Macintosh Safari',maxTouchPoints:5});
 ipad.document.fullscreenElement={};ipad.ui.attach({},ipad.ui.profile());
 assert.equal(ipad.styles['--mobile-start-inset'],'96px','iPad fullscreen dismiss control has reserved space');
+
+const ipadWindowed=setup({coarse:true,userAgent:'iPad Safari',maxTouchPoints:5});
+let fullscreenCalls=0;ipadWindowed.document.documentElement.requestFullscreen=()=>{fullscreenCalls++};
+ipadWindowed.ui.prepareDisplay();assert.equal(fullscreenCalls,0,'iPad does not enter gesture-prone Safari fullscreen automatically');
+ipadWindowed.ui.attach({},ipadWindowed.ui.profile());
+ipadWindowed.ui.notify('Recruiting: Pikemen × 2');
+const notice=ipadWindowed.elements.find(e=>e.className==='mobile-action-notice');assert.equal(notice.hidden,false);assert.equal(notice.textContent,'Recruiting: Pikemen × 2');
+ipadWindowed.ui.notify('Recruited: Pikemen × 2',true);assert.equal(notice.textContent,'Recruited: Pikemen × 2');ipadWindowed.timers.at(-1)();assert.equal(notice.hidden,true);
+console.log('PASS: iPad windowed default and timed recruitment feedback');
+
+ipadWindowed.buttons.find(b=>b.textContent==='Screen ⛶').onclick();
+assert.equal(ipadWindowed.elements.find(e=>e.className==='mobile-display-help').hidden,false,'Screen explains Safari limitations on iPad');
+ipadWindowed.buttons.find(b=>b.textContent==='Enter fullscreen').onclick();
+assert.equal(fullscreenCalls,1,'iPad still supports explicit fullscreen opt-in');
