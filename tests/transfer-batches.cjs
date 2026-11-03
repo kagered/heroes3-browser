@@ -12,8 +12,15 @@ const file=(name,data)=>({name,size:data.byteLength,arrayBuffer:async()=>data.bu
  const many=await open('file-batches'),rows=[];for(let i=0;i<257;i++)for(const ext of ['vcgm1','vsgm1'])rows.push([`/Saves/pair-${String(i).padStart(3,'0')}.${ext}`,Uint8Array.of(i%255+1)]);await put(many,rows);
  const imported=await open('batch-import');const result=await api.readSaveBatches(many,async batch=>{
   assert(batch.length<=512);const stems=new Map();for(const row of batch){const name=row.path.replace(/\.[^.]+$/,'');stems.set(name,(stems.get(name)||0)+1)}assert([...stems.values()].every(count=>count===2),'paired files never split');
-  const parsed=await api.parseFiles([file('part.zip',api.makeArchive(batch))]);await api.importRows(imported,parsed);
+  const parsed=await api.parseFiles([file('part.zip',api.makeArchive(batch))]);await api.importFiles(imported,[file('part.zip',api.makeArchive(parsed))]);
  });assert.equal(result.parts,2);assert.equal(await api.countSaves(imported),257);many.close();imported.close();
+ const sequential=await open('sequential'),progress=[];
+ const one=api.makeArchive([{path:'/Saves/one.vsgm1',data:Uint8Array.of(1)}]),two=api.makeArchive([{path:'/Saves/two.vsgm1',data:Uint8Array.of(2)}]);
+ const selection=[{...file('one.zip',one),size:80*1048576},{...file('two.zip',two),size:80*1048576}];
+ await assert.rejects(api.parseFiles(selection),/input-too-large/);
+ const multi=await api.importFiles(sequential,selection,(n,total)=>progress.push([n,total]));assert.equal(multi.saves,2);assert.deepEqual(progress,[[1,2],[2,2]]);
+ await assert.rejects(api.importFiles(sequential,[file('one.zip',one),file('bad.zip',Uint8Array.of(0))]),error=>error.importResult.completed===1 && error.importResult.saves===1 && error.importFile==='bad.zip');assert.equal(await api.countSaves(sequential),3,'valid earlier parts remain after a later failure');
+ const raw=await api.importFiles(sequential,[file('loose.vsgm1',Uint8Array.of(3)),file('loose.vcgm1',Uint8Array.of(4))]);assert.equal(raw.saves,1,'loose paired files stay in the same transaction');sequential.close();
  const empty=await open('empty-batches');const no=await api.readSaveBatches(empty,()=>assert.fail('empty archive'));assert.equal(no.parts,0);empty.close();
  await assert.rejects(api.parseFiles([{name:'large.zip',size:api.MAX_INPUT+1}]),/input-too-large/);
  console.log('PASS: real 33 MiB export/import, byte and count splitting, paired files, all parts restore, empty export, distinct input limit');

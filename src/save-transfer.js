@@ -22,13 +22,16 @@
         invalid:tr('Не удалось прочитать сохранения. Выбери ZIP из этой сборки или файлы .vsgm1 / .vcgm1.','Could not read the saves. Choose a ZIP from this build or .vsgm1 / .vcgm1 files.'),
         duplicate:tr(operation==='export'?'У сохранений совпадают имена без учёта регистра. Переименуй одну из партий в игре и повтори экспорт.':'В архиве есть повторяющиеся имена. Импорт отменён.',operation==='export'?'Some save names differ only in letter case. Rename one in the game and export again.':'The archive contains duplicate names. Nothing was imported.'),
         version:tr('Этот формат резервной копии пока не поддерживается.','This backup format is not supported.'),
-        'too-large':tr('В выбранных архивах больше 128 МиБ сохранений после распаковки. Импортируй части резервной копии по одной.','The selected archives contain more than 128 MiB of saves after extraction. Import backup parts one at a time.'),
-        'input-too-large':tr('Выбрано больше 144 МиБ файлов. Импортируй части резервной копии по одной.','More than 144 MiB of files selected. Import backup parts one at a time.'),
-        'too-many':tr('За один импорт можно перенести до 512 файлов сохранений. Выбирай части резервной копии по одной.','Import up to 512 save files at a time. Select backup parts one at a time.'),
+        'too-large':tr('В одной части больше 128 МиБ сохранений после распаковки. Выбери меньший архив или меньше отдельных файлов.','One part contains more than 128 MiB of saves after extraction. Choose a smaller archive or fewer loose files.'),
+        'input-too-large':tr('Один архив или группа отдельных файлов больше 144 МиБ. Выбери меньший архив или меньше отдельных файлов.','An archive or group of loose files exceeds 144 MiB. Choose a smaller archive or fewer loose files.'),
+        'too-many':tr('В одной части можно перенести до 512 файлов сохранений. Выбери меньший архив или меньше отдельных файлов.','Each part supports up to 512 save files. Choose a smaller archive or fewer loose files.'),
         'save-too-large':tr('Одна партия занимает больше 128 МиБ. Её экспорт пока не поддерживается. Остальные сохранения не изменены.','A single game exceeds 128 MiB. Exporting it is not supported yet. Existing saves were not changed.'),
         storage:tr(operation==='export'?'Не удалось прочитать сохранения для экспорта. Закрой другие вкладки с игрой и повтори попытку.':'Не удалось записать данные в браузер. Проверь свободное место и разрешение на хранение.',operation==='export'?'Could not read saves for export. Close other game tabs and try again.':'Could not write to browser storage. Check available space and storage permissions.')
       };
       if(operation==='export')release();
+      if(error.importResult?.completed){
+        report(tr(`Импортировано сохранений: ${error.importResult.saves}. Обработка остановлена${error.importFile?' на «'+error.importFile+'»':''}. Уже добавленные сохранения остались в браузере. `,`Imported saves: ${error.importResult.saves}. Processing stopped${error.importFile?' at “'+error.importFile+'”':''}. Successfully imported saves are still in this browser. `)+(messages[error.message] || tr('Не удалось прочитать следующую часть.','Could not read the next part.')),'error');return;
+      }
       report(messages[error.message] || tr(operation==='export'?'Не удалось подготовить архив. Сохранения не изменены.':'Не удалось импортировать файл. Существующие сохранения не изменены.',operation==='export'?'Could not prepare the backup. Saves were not changed.':'Could not import the file. Existing saves were not changed.'),'error');
     }finally{working=false;exportButton.disabled=importButton.disabled=false;picker.value='';}
   }
@@ -49,13 +52,13 @@
     configure(download,0);download.hidden=false;
     for(let i=1;i<result.parts;i++){const item=document.createElement('li'),link=document.createElement('a');configure(link,i);item.append(link);downloads.append(item);}
     downloads.hidden=result.parts===1;download.click();
-    report(result.parts===1?tr('Архив готов. Сохрани его в «Файлы» или отправь на другое устройство.','Backup ready. Save it to Files or send it to another device.'):tr(`Коллекция разделена на части: ${result.parts}. Скачай каждую часть по ссылкам ниже; на другом устройстве импортируй их по одной.`,`Your collection was split into ${result.parts} archives. Download every part below, then import them one at a time on the other device.`),result.parts===1?'success':'warning');
+    report(result.parts===1?tr('Архив готов. Сохрани его в «Файлы» или отправь на другое устройство.','Backup ready. Save it to Files or send it to another device.'):tr(`Коллекция разделена на части: ${result.parts}. Скачай каждую часть по ссылкам ниже; на другом устройстве выбери все части для импорта.`,`Your collection was split into ${result.parts} archives. Download every part below, then select all parts together for import on the other device.`),result.parts===1?'success':'warning');
   },'export');
   importButton.onclick=()=>picker.click();
   picker.onchange=()=>{const files=Array.from(picker.files||[]);if(!files.length)return;void run(async()=>{
     release();report(tr('Проверяем сохранения…','Checking saves…'));
-    const rows=await api.parseFiles(files),value=await database();let result;
-    try{result=await api.importRows(value,rows);}finally{value.close();}
+    const value=await database();let result;
+    try{result=await api.importFiles(value,files,(part,total,name)=>report(tr(`Импортируем ${part} из ${total}${name?': '+name:''}…`,`Importing ${part} of ${total}${name?': '+name:''}…`)));}finally{value.close();}
     report(tr(`Импортировано сохранений: ${result.saves}.`+(result.renamed?' Совпадающие имена получили пометку (imported).':''),`Imported saves: ${result.saves}.`+(result.renamed?' Matching names were kept as separate (imported) copies.':'')),'success');
   },'import');};
   document.getElementById('start').addEventListener('click',event=>{if(working){event.preventDefault();event.stopImmediatePropagation();return;}release();},{capture:true});

@@ -166,6 +166,22 @@
       tx.onerror=()=>reject(new Error('storage'));
     });
   }
+  async function importFiles(database,files,onProgress=()=>{}) {
+    // ZIP parts are independent transactions; loose files stay together to preserve pairs.
+    const loose=files.filter(file=>! /\.zip$/i.test(file.name));
+    const batches=files.filter(file=>/\.zip$/i.test(file.name)).map(file=>[file]);
+    if(loose.length)batches.unshift(loose);
+    if(!batches.length)fail('empty');
+    const result={saves:0,renamed:0,completed:0,total:batches.length};
+    for(const batch of batches){
+      try{
+        onProgress(result.completed+1,result.total,batch.length===1?batch[0].name:'');
+        const rows=await parseFiles(batch),part=await importRows(database,rows);
+        result.saves+=part.saves;result.renamed+=part.renamed;result.completed++;
+      }catch(error){error.importResult={...result};error.importFile=batch.length===1?batch[0].name:'';throw error;}
+    }
+    return result;
+  }
   async function countSaves(database) {
     return new Promise((resolve,reject)=>{
       const tx=database.transaction('files');const r=tx.objectStore('files').getAllKeys();
@@ -173,5 +189,5 @@
       r.onerror=()=>reject(new Error('storage'));
     });
   }
-  root.HeroesSaveTransfer={readSaves,readSaveBatches,makeArchive,parseFiles,importRows,countSaves,isSavePath,MAX_BYTES,MAX_INPUT,MAX_FILES};
+  root.HeroesSaveTransfer={readSaves,readSaveBatches,makeArchive,parseFiles,importRows,importFiles,countSaves,isSavePath,MAX_BYTES,MAX_INPUT,MAX_FILES};
 })(globalThis);

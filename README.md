@@ -51,7 +51,7 @@ The builder accepts either language or both. It writes a static site and splits 
 | Single-player scenarios, RU/EN, local saves, custom maps | Multiplayer, HotA, WoG and HD Mod |
 | Desktop browsers and touch devices with the required browser APIs | A promise that every device has enough RAM |
 | Map ZIP import/export: 64 maps / 64 MiB, up to 8 MiB per map | Campaigns have not been fully tested |
-| Save backups: automatic parts, up to 128 MiB / 512 files per archive | Cloud save sync or a fully offline launcher |
+| Save backups: automatic parts, up to 128 MiB / 512 files per archive; select all ZIP parts to import sequentially | Cloud save sync or a fully offline launcher |
 
 Browser storage, performance and memory limits vary by device. If an iPad reports `out of memory`, fully close the game tab and reopen the site. Do not erase site data to address RAM issues; that would also remove local saves and maps. The hosted site uses a short helper-page transition when needed to release old Safari game memory.
 
