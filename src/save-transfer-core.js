@@ -2,7 +2,7 @@
 'use strict';
 (function(root) {
   const zip = root.fflate;
-  const MAX_BYTES = 32 * 1024 * 1024, MAX_INPUT = 48 * 1024 * 1024, MAX_FILES = 512;
+  const MAX_BYTES = 128 * 1024 * 1024, MAX_INPUT = 144 * 1024 * 1024, MAX_FILES = 512;
   const DEFAULT_ROOT = '/home/web_user/.local/share/vcmi/Saves/';
   const EXT = /\.(vsgm1|vcgm1)$/i;
   const fold = name => name.normalize('NFC').toLowerCase();
@@ -45,6 +45,34 @@
       tx.onerror=()=>reject(new Error('storage'));
     });
   }
+  async function readSaveBatches(database, consume) {
+    // Read only one archive batch at a time. Keep server/client save pairs together.
+    const keys=await new Promise((resolve,reject)=>{
+      const tx=database.transaction('files'),request=tx.objectStore('files').getAllKeys();
+      request.onsuccess=()=>resolve(request.result.filter(isSavePath));
+      request.onerror=()=>reject(new Error('storage'));
+    });
+    const groups=new Map();
+    for(const path of keys){const key=fold(stem(savePath(path).path));if(!groups.has(key))groups.set(key,[]);groups.get(key).push(path);}
+    let batch=[],bytes=0,parts=0;
+    async function flush(){if(!batch.length)return;await consume(batch,++parts);batch=[];bytes=0;}
+    for(const paths of groups.values()){
+      const rows=await new Promise((resolve,reject)=>{
+        const tx=database.transaction('files'),store=tx.objectStore('files'),result=[];
+        for(const path of paths){const request=store.get(path);request.onsuccess=()=>{
+          const data=request.result;
+          if(!(data instanceof Uint8Array) || !data.byteLength){tx.abort();return;}
+          result.push({path:savePath(path).path,data});
+        };}
+        tx.oncomplete=()=>resolve(result);tx.onabort=tx.onerror=()=>reject(new Error('storage'));
+      });
+      const size=rows.reduce((sum,row)=>sum+row.data.byteLength,0);
+      if(size>MAX_BYTES || rows.length>MAX_FILES)fail('save-too-large');
+      if(bytes+size>MAX_BYTES || batch.length+rows.length>MAX_FILES)await flush();
+      batch.push(...rows);bytes+=size;
+    }
+    await flush();return {saves:groups.size,parts};
+  }
   function makeArchive(rows) {
     if (!rows.length) fail('empty');
     const contents=Object.create(null), paths=Object.create(null), seen=new Set();let bytes=0;
@@ -61,7 +89,7 @@
   }
   async function parseFiles(files) {
     if(!files.length)fail('empty');
-    if(files.reduce((sum,file)=>sum+file.size,0)>MAX_INPUT)fail('too-large');
+    if(files.reduce((sum,file)=>sum+file.size,0)>MAX_INPUT)fail('input-too-large');
     const rows=[];let total=0;
     const seen=new Set();
     function append(path,data) {
@@ -69,7 +97,8 @@
       if(!data.byteLength)fail('invalid');
       if(seen.has(fold(checked)))fail('duplicate');seen.add(fold(checked));
       total+=data.byteLength;
-      if(total>MAX_BYTES || rows.length>=MAX_FILES)fail('too-large');
+      if(total>MAX_BYTES)fail('too-large');
+      if(rows.length>=MAX_FILES)fail('too-many');
       rows.push({path:checked,data});
     }
     for(const file of files) {
@@ -87,7 +116,8 @@
         if(!EXT.test(entry.name))return false;
         if(names.has(fold(entry.name)))fail('duplicate');names.add(fold(entry.name));
         expanded+=entry.originalSize;count++;
-        if(!Number.isSafeInteger(entry.originalSize) || entry.originalSize<1 || expanded+total>MAX_BYTES || count+rows.length>MAX_FILES)fail('too-large');
+        if(!Number.isSafeInteger(entry.originalSize) || entry.originalSize<1 || expanded+total>MAX_BYTES)fail('too-large');
+        if(count+rows.length>MAX_FILES)fail('too-many');
         return true;
       }});
       let metadata;
@@ -143,5 +173,5 @@
       r.onerror=()=>reject(new Error('storage'));
     });
   }
-  root.HeroesSaveTransfer={readSaves,makeArchive,parseFiles,importRows,countSaves,isSavePath,MAX_BYTES};
+  root.HeroesSaveTransfer={readSaves,readSaveBatches,makeArchive,parseFiles,importRows,countSaves,isSavePath,MAX_BYTES,MAX_INPUT,MAX_FILES};
 })(globalThis);

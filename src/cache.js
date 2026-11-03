@@ -10,6 +10,7 @@
   const tr = (ru,en) => document.documentElement.lang === 'en' ? en : ru;
   let working = false, pending, sizes, counts;
   const names = {ru:['русской версии','Russian game files'],en:['английской версии','English game files'],all:['всех скачанных ресурсов','all downloaded resources']};
+  function notify(text,state='info'){message.dataset.state=state;message.setAttribute('aria-live',state==='error'?'assertive':'polite');message.textContent=text;}
   function controls() {
     for (const button of buttons) {
       const scope = button.dataset.cacheClear;
@@ -53,7 +54,7 @@
     try { await action(); }
     catch {
       counts = undefined;
-      message.textContent = tr('Не удалось обработать кэш. Закрой другие вкладки с игрой и повтори попытку. Сохранения не затрагиваются.','Could not access the cache. Close other game tabs and try again. Saves are not affected.');
+      notify(tr('Не удалось обработать кэш. Закрой другие вкладки с игрой и повтори попытку. Сохранения не затрагиваются.','Could not access the cache. Close other game tabs and try again. Saves are not affected.'),'error');
     } finally { working = false; controls(); }
   }
   function dismiss() { pending = undefined; confirmation.hidden = true; }
@@ -70,17 +71,17 @@
     const scope = pending;
     if (!scope || working) return;
     void run(async () => {
-      message.textContent = tr('Очищаем скачанные ресурсы…','Clearing downloaded resources…');
+      notify(tr('Очищаем скачанные ресурсы…','Clearing downloaded resources…'));
       const database = await openDB();
       try { await api.clear(database, scope); }
       finally { database.close(); }
       dismiss();
       await refresh();
-      message.textContent = tr('Скачанные ресурсы удалены. Сохранения остались на месте.','Downloaded resources removed. Your saves are still here.');
+      notify(tr('Скачанные ресурсы удалены. Сохранения остались на месте.','Downloaded resources removed. Your saves are still here.'),'success');
       document.getElementById('cache-refresh').focus();
     });
   };
-  function update() { dismiss();void run(async () => { message.textContent = tr('Проверяем скачанные файлы…','Checking downloaded files…');await refresh();message.textContent = ''; }); }
+  function update() { dismiss();void run(async () => { notify(tr('Проверяем скачанные файлы…','Checking downloaded files…'));await refresh();notify(''); }); }
   panel.addEventListener('toggle', () => { if (panel.open) update(); });
   document.getElementById('cache-refresh').onclick = update;
   document.getElementById('start').addEventListener('click', event => {
