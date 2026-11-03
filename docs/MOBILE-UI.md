@@ -184,3 +184,9 @@ Confirming in-game Load uses the tracked browser teardown/relaunch path instead 
 Full text is offered only when the laid-out mobile text box actually overflows and owns a scroll bar, rather than from raw UTF-8 byte length. Short fitting notices have only their original confirmation control.
 
 The supplied Russian Tutorial.tut stores the Inferno/Archangels event message as exactly 300 Windows-1251 bytes, ending mid-sentence. The English map contains the complete counterpart. This is a source-map content defect, also embedded into existing saves, not hidden content in the reader. Game maps and save contents are not rewritten by this UI fix.
+
+### Sequential dwelling purchases and turn feedback
+
+External dwelling recruitment stays open after an acknowledged purchase, retaining variant arrows and the success notice, so a player can buy other war-machine types without revisiting the building. Town single-dwelling behavior remains the engine default.
+
+The native mobile shell receives player-end, opponent-start and your-turn events from the engine, including player color and the authoritative month/week/day. A noninteractive gold-framed ribbon animates an hourglass while waiting, identifies opponents, then briefly shows Your turn with the new date. It never introduces a gameplay delay or confirmation. Classic battle windows suppress the ribbon; reduced-motion preferences disable animation. Tests cover phases, date, stale dismissal timers and window visibility. Physical iPad timing and presentation still require checking; Browser use is unavailable in this session.

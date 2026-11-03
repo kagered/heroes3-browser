@@ -752,14 +752,13 @@
  }
  
  void CRecruitmentWindow::availableCreaturesChanged()
-@@ -268,10 +359,16 @@
+@@ -268,10 +359,15 @@
  
  	const int creatureWidth = 102;
  
 + if(mobileLayout && pendingRecruitAmount>0)
 + {
 +  for(const auto & card:cards)if(card->creature->getId()==pendingRecruitCreature && card->amount<pendingRecruitStock){notifyRecruit(mobileText("Нанято: ","Recruited: ")+card->creature->getNamePluralTranslated()+" × "+std::to_string(pendingRecruitStock-card->amount),true);pendingRecruitAmount=0;
-+   if(level<0)for(auto window:GH.windows().findWindows<CRecruitmentWindow>())if(window.get()==this){std::weak_ptr<CRecruitmentWindow> weak=window;GH.dispatchMainThread([weak](){if(auto live=weak.lock();live && GH.windows().isTopWindow(live))live->close();});break;}
 +   break;}
 + }
  	//normal distance between cards - 18px
@@ -770,7 +769,7 @@
  
  	if (cards.size() > 1) // avoid division by zero
  		availableSpace /= (int)cards.size() - 1;
-@@ -291,8 +388,9 @@
+@@ -291,8 +387,9 @@
  		curx += totalCreatureWidth;
  	}
  
@@ -781,7 +780,7 @@
  
  	if(slider->getValue() == slider->getAmount())
  		slider->scrollToMax();
-@@ -306,6 +404,7 @@
+@@ -306,6 +403,7 @@
  		return;
  
  	buyButton->block(!to || !LOCPLINT->makingTurn);
@@ -789,7 +788,7 @@
  	availableValue->setText(std::to_string(selected->amount - to));
  	toRecruitValue->setText(std::to_string(to));
  
-@@ -313,7 +412,7 @@
+@@ -313,7 +411,7 @@
  }
  
  CSplitWindow::CSplitWindow(const CCreature * creature, std::function<void(int, int)> callback_, int leftMin_, int rightMin_, int leftAmount_, int rightAmount_)
@@ -798,7 +797,7 @@
  	callback(callback_),
  	leftAmount(leftAmount_),
  	rightAmount(rightAmount_),
-@@ -352,6 +451,33 @@
+@@ -352,6 +450,33 @@
  	std::string titleStr = CGI->generaltexth->allTexts[256];
  	boost::algorithm::replace_first(titleStr,"%s", creature->getNamePluralTranslated());
  	title = std::make_shared<CLabel>(150, 34, FONT_BIG, ETextAlignment::CENTER, Colors::YELLOW, titleStr);
@@ -832,7 +831,7 @@
  }
  
  void CSplitWindow::setAmountText(std::string text, bool left)
-@@ -399,12 +525,42 @@
+@@ -399,12 +524,42 @@
  }
  
  CLevelWindow::CLevelWindow(const CGHeroInstance * hero, PrimarySkill pskill, std::vector<SecondarySkill> & skills, std::function<void(ui32)> callback)
@@ -876,7 +875,7 @@
  
  	if(!skills.empty())
  	{
-@@ -438,6 +594,12 @@
+@@ -438,6 +593,12 @@
  	skillIcon = std::make_shared<CAnimImage>(AnimationPath::builtin("PSKIL42"), static_cast<int>(pskill), 0, 174, 190);
  
  	skillValue = std::make_shared<CLabel>(192, 253, FONT_MEDIUM, ETextAlignment::CENTER, Colors::WHITE, CGI->generaltexth->primarySkillNames[static_cast<int>(pskill)] + " +1");
@@ -889,7 +888,7 @@
  }
  
  void CLevelWindow::close()
-@@ -532,6 +694,7 @@
+@@ -532,6 +693,7 @@
  		videoPlayer = std::make_shared<VideoWidget>(Point(70, 56), VideoPath::builtin("TAVERN.BIK"), false);
  
  	addInvite();
@@ -897,7 +896,7 @@
  }
  
  void CTavernWindow::addInvite()
-@@ -1464,6 +1627,74 @@
+@@ -1464,6 +1626,74 @@
  
  		counter++;
  	}
@@ -972,7 +971,7 @@
  }
  
  CObjectListWindow::CItem::CItem(CObjectListWindow * _parent, size_t _id, std::string _text)
-@@ -1739,3 +1970,26 @@
+@@ -1739,3 +1969,26 @@
  {
  	exit(true);
  }
@@ -3273,7 +3272,43 @@
  
  #include <vcmi/Artifact.h>
  
-@@ -1818,6 +1821,9 @@
+@@ -217,6 +220,10 @@
+ 	if (player == playerID)
+ 	{
+ 		makingTurn = false;
++
++#ifdef VCMI_HTML5_BUILD
++ MAIN_THREAD_EM_ASM({if(Module.mobileAdventureUI && Module.mobileTurnState)Module.mobileTurnState($0,$1,$2,$3,$4);},0,player.getNum(),cb->getDate(Date::DAY_OF_WEEK),cb->getDate(Date::WEEK),cb->getDate(Date::MONTH));
++#endif
+ 		closeAllDialogs();
+ 
+ 		// remove all pending dialogs that do not expect query answer
+@@ -243,7 +250,13 @@
+ 		bool isHuman = cb->getStartInfo()->playerInfos.count(player) && cb->getStartInfo()->playerInfos.at(player).isControlledByHuman();
+ 
+ 		if (makingTurn == false)
++  {
++
++#ifdef VCMI_HTML5_BUILD
++ MAIN_THREAD_EM_ASM({if(Module.mobileAdventureUI && Module.mobileTurnState)Module.mobileTurnState($0,$1,$2,$3,$4);},1,player.getNum(),cb->getDate(Date::DAY_OF_WEEK),cb->getDate(Date::WEEK),cb->getDate(Date::MONTH));
++#endif
+ 			adventureInt->onEnemyTurnStarted(player, isHuman);
++  }
+ 	}
+ }
+ 
+@@ -342,6 +355,10 @@
+ 			adventureInt->onPlayerTurnStarted(playerID);
+ 		}
+ 
++
++#ifdef VCMI_HTML5_BUILD
++ MAIN_THREAD_EM_ASM({if(Module.mobileAdventureUI && Module.mobileTurnState)Module.mobileTurnState($0,$1,$2,$3,$4);},2,playerID.getNum(),cb->getDate(Date::DAY_OF_WEEK),cb->getDate(Date::WEEK),cb->getDate(Date::MONTH));
++#endif
+ 	acceptTurn(queryID, hotseatWait);
+ }
+ 
+@@ -1818,6 +1835,9 @@
  		CGI->generaltexth->allTexts[68],
  		[]()
  		{

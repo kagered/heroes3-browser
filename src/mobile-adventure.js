@@ -82,6 +82,7 @@
     if(!initialized || active!==value || mapOverlay!==overlay || popup!==isPopup) {
       initialized=true;active=value;mapOverlay=overlay;popup=isPopup;
       if(active)saveNameField(false);
+      if(turnBanner)turnBanner.hidden=!turnVisible || !(active || mapOverlay);
       const game=document.getElementById('game');game.classList.toggle('mobile-adventure-active',active || mapOverlay);
       game.scrollTop=0;game.scrollLeft=0;
       mapTop.hidden=!(active || popup);bottom.hidden=!(active || popup);dialogTop.hidden=active || popup;
@@ -144,6 +145,20 @@
     saveNameRect=[x,y,width,height];positionSaveNameInput();
     if(document.activeElement!==saveNameInput && saveNameInput.value!==value)saveNameInput.value=value;
   }
+  let turnBanner, turnHeading, turnDetail, turnTimer, turnGeneration=0, turnVisible=false;
+  function turnState(phase,player,day,week,month) {
+    if(!turnBanner)return;
+    const generation=++turnGeneration;clearTimeout(turnTimer);
+    const colors=['#d86250','#6796e4','#e4c85d','#79ac79','#dd9759','#b38ac9','#72b8ba','#d6b7bd'];
+    const ru=['красного','синего','жёлтого','зелёного','оранжевого','фиолетового','бирюзового','розового'];
+    const eng=['Red','Blue','Tan','Green','Orange','Purple','Teal','Pink'];
+    const index=Number.isInteger(player)&&player>=0&&player<8?player:0;
+    turnBanner.style.setProperty('--turn-player-color',colors[index]);
+    turnBanner.classList.toggle('turn-ready',phase===2);turnVisible=true;turnBanner.hidden=!(active || mapOverlay);
+    turnHeading.textContent=phase===2?text('Твой ход','Your turn'):phase===1?text('Ход '+ru[index]+' игрока',eng[index]+" player's turn"):text('Смена хода','Passing the turn');
+    turnDetail.textContent=text('Месяц '+month+' · Неделя '+week+' · День '+day,'Month '+month+' · Week '+week+' · Day '+day);
+    if(phase===2)turnTimer=setTimeout(()=>{if(generation===turnGeneration){turnVisible=false;turnBanner.hidden=true;}},2000);
+  }
   let fullTextReader;
   function showFullText(value) {
     if(!fullTextReader) {
@@ -165,7 +180,7 @@
       module=options;session=true;
       options.mobileAdventureUI=true;options.mobileViewport=viewport;
       options.mobileRenderSize={width:Math.max(800,viewport.width),height:Math.max(600,viewport.height)};
-      options.mobileActions=[];options.mobileAdventureState=state;options.mobileHeroState=heroState;
+      options.mobileActions=[];options.mobileAdventureState=state;options.mobileHeroState=heroState;options.mobileTurnState=turnState;
       const game=document.getElementById('game');game.classList.add('mobile-adventure-session');
       game.style.setProperty('--mobile-render-width',Math.max(800,viewport.width)+'px');
       game.style.setProperty('--mobile-render-height',Math.max(600,viewport.height)+'px');
@@ -174,6 +189,10 @@
       window.addEventListener('fullscreenchange',updateGeometry);
       window.visualViewport?.addEventListener('resize',updateGeometry);
       panel=document.createElement('div');panel.className='mobile-adventure-shell';
+      turnBanner=document.createElement('aside');turnBanner.className='mobile-turn-banner';turnBanner.hidden=true;turnBanner.setAttribute('role','status');turnBanner.setAttribute('aria-live','polite');
+      const hourglass=document.createElement('span');hourglass.className='mobile-turn-hourglass';hourglass.setAttribute('aria-hidden','true');
+      const turnCopy=document.createElement('div');turnHeading=document.createElement('strong');turnDetail=document.createElement('span');turnCopy.append(turnHeading,turnDetail);turnBanner.append(hourglass,turnCopy);panel.append(turnBanner);
+
       mapTop=document.createElement('nav');dialogTop=document.createElement('nav');bottom=document.createElement('nav');
       mapTop.className=dialogTop.className='mobile-adventure-top';bottom.className='mobile-adventure-bottom';
       mapTop.setAttribute('aria-label',text('Инструменты карты','Map tools'));

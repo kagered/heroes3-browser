@@ -58,3 +58,11 @@
 .mobile-full-text-content{overflow:auto;min-height:0;flex:1;white-space:pre-wrap;overflow-wrap:anywhere;touch-action:pan-y;-webkit-overflow-scrolling:touch}
 .mobile-full-text button{min-height:48px;background:#d2b574;color:#17120c;border:0;border-radius:4px;font:600 16px system-ui}
 .mobile-full-text[hidden]{display:none!important}
+
+.mobile-turn-banner{position:absolute;top:58px;left:50%;transform:translateX(-50%);z-index:8;display:flex;align-items:center;gap:16px;max-width:calc(100% - 32px);padding:14px 24px;border:1px solid #b79c65;border-left:4px solid var(--turn-player-color,#b79c65);border-radius:6px;background:linear-gradient(135deg,#32281ef5,#17191ef5);color:#f7e8c8;box-shadow:0 6px 24px #0009;pointer-events:none;animation:turn-arrive .25s ease-out}
+.mobile-turn-banner strong,.mobile-turn-banner div>span{display:block;white-space:nowrap}.mobile-turn-banner strong{font:600 18px/1.4 system-ui}.mobile-turn-banner div>span{font:13px/1.6 system-ui;color:#c6baa2}
+.mobile-turn-hourglass{display:block;width:20px;height:30px;flex:none;border-top:3px solid #d6bc7c;border-bottom:3px solid #d6bc7c;background:linear-gradient(45deg,transparent 38%,#d6bc7c 39% 61%,transparent 62%),linear-gradient(-45deg,transparent 38%,#d6bc7c 39% 61%,transparent 62%);animation:turn-hourglass 1.6s ease-in-out infinite}
+.mobile-turn-banner.turn-ready{border-left-color:#9ac88d}.turn-ready .mobile-turn-hourglass{animation:none;background:none;width:22px;height:12px;transform:rotate(-45deg);border:0;border-left:3px solid #9ac88d;border-bottom:3px solid #9ac88d}
+@keyframes turn-hourglass{0%,35%{transform:rotate(0)}65%,100%{transform:rotate(180deg)}}
+@keyframes turn-arrive{from{opacity:0;translate:0 -8px}to{opacity:1;translate:0 0}}
+@media(prefers-reduced-motion:reduce){.mobile-turn-banner,.mobile-turn-hourglass{animation:none}}
