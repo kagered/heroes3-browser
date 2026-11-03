@@ -156,3 +156,8 @@ Validation: full pinned Emscripten build and required `ninja -j32 html5`, public
 Saving now lists all readable saves independently of the lobby guest flag and tutorial/campaign load-mode filter; loading retains its original compatibility filtering. The current scenario metadata is retained separately from file selection, including an empty list. The mobile Scenario tab describes the active party rather than the selected destination file.
 
 The filename uses a real HTML input placed over the native field, so tapping it is a browser input gesture on iPad. It preserves focused edits across redraws, filters the same forbidden filename characters, transfers text before Save, and hides/loses focus over confirmations, other pages and after closing the screen. Cyrillic, filtering, selection/focus preservation and dismissal have automated checks. Actual iPad keyboard and full save/reload behavior still need physical verification; Browser use remains unavailable.
+
+
+### iPad keyboard focus follow-up
+
+Dialog layer changes can occur when Safari shrinks its visual viewport for the keyboard. Closing an already-closed pause menu no longer focuses the canvas; focus returns to the game only after an actual pause-menu dismissal and never while the browser filename input is focused. The regression test simulates a keyboard-sized viewport and native-dialog layer changes, fails on the previous code, and passes with the fix. Physical iPad confirmation is still required.

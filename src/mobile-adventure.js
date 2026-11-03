@@ -72,9 +72,9 @@
   }
   function togglePause(open) {
     if(!pausePanel)return;
-    pauseOpen=open;pausePanel.hidden=!open;
+    const wasOpen=pauseOpen;pauseOpen=open;pausePanel.hidden=!open;
     if(open)pausePanel.querySelector('button')?.focus({preventScroll:true});
-    else document.getElementById('canvas').focus({preventScroll:true});
+    else if(wasOpen && document.activeElement!==saveNameInput)document.getElementById('canvas').focus({preventScroll:true});
   }
   function state(value,mask,overlay=false,isPopup=false) {
     if(!panel)return;

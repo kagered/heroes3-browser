@@ -2,7 +2,7 @@ const fs=require('fs'),vm=require('vm'),assert=require('assert/strict');
 const code=fs.readFileSync('src/mobile-adventure.js','utf8');
 function setup({coarse=false,query='',width=844,height=390,manifest=true,language='en',screenSize,userAgent='',maxTouchPoints=0}={}) {
  const timers=[],buttons=[],elements=[],classes=new Set(),styles={},listeners={};let events=0;
- const game={width:844,height:600,style:{setProperty(k,v){styles[k]=v}},classList:{add(k){classes.add(k)},toggle(k,v){v?classes.add(k):classes.delete(k)}},append(){},addEventListener(){},focus(){}};
+ const game={width:844,height:600,style:{setProperty(k,v){styles[k]=v}},classList:{add(k){classes.add(k)},toggle(k,v){v?classes.add(k):classes.delete(k)}},append(){},addEventListener(){},focus(){document.activeElement=game;}};
  const document={documentElement:{lang:language},getElementById(){return game},createElement(tag){const e={tagName:tag,getContext:tag==='canvas'?()=>({drawImage(){}}):undefined,toDataURL:()=>"data:image/jpeg;base64,test",dataset:{},style:{},blur(){if(document.activeElement===this)document.activeElement=null;},children:[],classList:{toggle(){}},setAttribute(){},append(...children){this.children.push(...children)},prepend(){},addEventListener(){},focus(){},querySelector(){return buttons[0]},querySelectorAll(){return buttons.filter(b=>b.dataset.action)}};elements.push(e);if(tag==='button')buttons.push(e);return e}};
  const window={HEROES_MOBILE_ENGINE:manifest?{}:null,dispatchEvent(){events++},addEventListener(type,fn){listeners[type]=fn}};
  vm.runInNewContext(code,{window,document,URLSearchParams,location:{search:query},matchMedia:()=>({matches:coarse}),innerWidth:width,innerHeight:height,screen:screenSize,navigator:{userAgent,maxTouchPoints},Event:class{},setTimeout(fn){timers.push(fn);return timers.length},clearTimeout(){}});
@@ -99,3 +99,15 @@ names.ui.saveNameField(false);assert.equal(nameField.hidden,true);assert.equal(n
 names.document.activeElement=null;names.ui.saveNameField(true,20,220,320,44,'Selected existing save');assert.equal(nameField.value,'Selected existing save');
 namesModule.mobileAdventureState(true,0xffff);assert.equal(nameField.hidden,true,'return to map hides browser save field');
 console.log('PASS: browser save-name editing, Cyrillic, filtering, focus preservation and dismissal');
+
+const keyboard=setup({coarse:true,userAgent:'iPad Safari',maxTouchPoints:5});const keyboardModule={};keyboard.ui.attach(keyboardModule,keyboard.ui.profile());
+keyboard.ui.saveNameField(true,20,220,320,44,'New save');
+const keyboardInput=keyboard.elements.find(e=>e.className==='mobile-save-name');keyboard.document.activeElement=keyboardInput;
+keyboard.window.visualViewport={width:844,height:220};keyboard.listeners.resize();
+keyboardModule.mobileAdventureState(false,0,false);
+assert.equal(keyboard.document.activeElement,keyboardInput,'keyboard viewport change must not focus the canvas');
+keyboardModule.mobileAdventureState(false,0,true);
+assert.equal(keyboard.document.activeElement,keyboardInput,'native dialog reflow must preserve text focus');
+keyboard.ui.saveNameField(true,20,140,320,44,'New save');
+assert.equal(keyboard.document.activeElement,keyboardInput,'repositioning the browser field must preserve text focus');
+console.log('PASS: iPad keyboard resize and dialog-layer changes retain filename focus');
