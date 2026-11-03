@@ -45,7 +45,7 @@
       tx.onerror=()=>reject(new Error('storage'));
     });
   }
-  function makeArchive(rows) {
+  function makeArchive(rows,playTime) {
     if (!rows.length) fail('empty');
     const contents=Object.create(null), paths=Object.create(null), seen=new Set();let bytes=0;
     if(rows.length>MAX_FILES)fail('too-large');
@@ -55,14 +55,14 @@
       bytes+=row.data.byteLength;if(bytes>MAX_BYTES)fail('too-large');
       contents[name]=row.data;paths[name]=file.path;
     }
-    contents['_heroes3.json']=zip.strToU8(JSON.stringify({format:'heroes3-browser-saves',version:1,engine:'VCMI 1.6.5',paths}));
+    contents['_heroes3.json']=zip.strToU8(JSON.stringify({format:'heroes3-browser-saves',version:1,engine:'VCMI 1.6.5',paths,playTime}));
     // VCMI saves are already compressed. Store them without another compression pass.
     return zip.zipSync(contents,{level:0});
   }
   async function parseFiles(files) {
     if(!files.length)fail('empty');
     if(files.reduce((sum,file)=>sum+file.size,0)>MAX_INPUT)fail('too-large');
-    const rows=[];let total=0;
+    const rows=[];let total=0;rows.playTime=[];
     const seen=new Set();
     function append(path,data) {
       const checked=savePath(path).path;
@@ -93,6 +93,7 @@
       let metadata;
       if(entries['_heroes3.json']) {
         try{metadata=JSON.parse(zip.strFromU8(entries['_heroes3.json']));}catch{fail('invalid');}
+        if(metadata?.playTime)rows.playTime.push(metadata.playTime);
         if(metadata?.format!=='heroes3-browser-saves' || metadata.version!==1 || !metadata.paths || typeof metadata.paths!=='object')fail('version');
       }
       for(const [entryName,data] of Object.entries(entries)) {

@@ -9,7 +9,7 @@ function file(name,bytes){return {name,size:bytes.byteLength,arrayBuffer:async()
  const source=await open('export'),destination=await open('import');
  await put(source,[['/Saves/Тест.vsgm1',[1,2,3]],['/Saves/Тест.vcgm1',[4,5]],['/config/settings.json',[8]]]);
  const rows=await api.readSaves(source);assert.equal(rows.length,2);assert.equal(await api.countSaves(source),1);
- const backup=api.makeArchive(rows),parsed=await api.parseFiles([file('backup.zip',backup)]);assert.equal(parsed.length,2);
+ const backup=api.makeArchive(rows,{'device-a':12345}),parsed=await api.parseFiles([file('backup.zip',backup)]);assert.equal(parsed.length,2);assert.equal(parsed.playTime[0]['device-a'],12345);
  await put(destination,[['/Saves/Тест.vsgm1',[9]],['/Saves/Тест.vcgm1',[8]],['/Saves/Тест (imported).vsgm1',[7]]]);
  const result=await api.importRows(destination,parsed);assert.equal(result.saves,1);assert.equal(result.renamed,1);
  let saved=await all(destination);assert.deepEqual(saved,[['/Saves/Тест (imported 2).vcgm1',[4,5]],['/Saves/Тест (imported 2).vsgm1',[1,2,3]],['/Saves/Тест (imported).vsgm1',[7]],['/Saves/Тест.vcgm1',[8]],['/Saves/Тест.vsgm1',[9]]]);

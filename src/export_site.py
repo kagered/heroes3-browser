@@ -57,7 +57,7 @@ def refresh_client(destination, manifest):
     shutil.copytree(ROOT/'assets',destination/'assets',dirs_exist_ok=True)
     for name in ['save-zip.js','LICENSE-fflate.txt','asset-sha256.js','LICENSE-noble-hashes.txt']:
         shutil.copyfile(ROOT/'vendor'/name,destination/'vendor'/name)
-    for name in ['index.html','favicon.svg','favicon-32.png','apple-touch-icon.png','favicon.ico','app.js','mobile.js','mobile-adventure.js','mobile-adventure.css','mobile-engine.js','manifest.webmanifest','pwa-icon-192.png','pwa-icon-512.png','runtime-lifecycle.js','save-transfer-core.js','save-transfer.js','release-notes.js','feedback.js','preflight.js','cache-core.js','cache.js','maps-core.js','maps.js','dialogs.js','download.js']:
+    for name in ['index.html','favicon.svg','favicon-32.png','apple-touch-icon.png','favicon.ico','app.js','mobile.js','mobile-adventure.js','mobile-adventure.css','mobile-engine.js','manifest.webmanifest','pwa-icon-192.png','pwa-icon-512.png','runtime-lifecycle.js','save-transfer-core.js','save-transfer.js','play-time.js','release-notes.js','feedback.js','preflight.js','cache-core.js','cache.js','maps-core.js','maps.js','dialogs.js','download.js']:
         shutil.copyfile(ROOT/name,destination/name)
     (destination/'site-data.js').write_text('window.HEROES_STATIC='+json.dumps(manifest,ensure_ascii=False,separators=(',',':'))+';\n')
     index=destination/'index.html'

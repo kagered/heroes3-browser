@@ -1,12 +1,12 @@
 const fs=require('fs'),vm=require('vm'),assert=require('assert/strict');
 const code=fs.readFileSync('src/mobile-adventure.js','utf8');
 function setup({coarse=false,query='',width=844,height=390,manifest=true,language='en',screenSize}={}) {
- const buttons=[],elements=[],classes=new Set();let events=0;
- const game={width:844,height:600,style:{setProperty(){}},classList:{add(k){classes.add(k)},toggle(k,v){v?classes.add(k):classes.delete(k)}},append(){},addEventListener(){},focus(){}};
+ const buttons=[],elements=[],classes=new Set(),styles={},listeners={};let events=0;
+ const game={width:844,height:600,style:{setProperty(k,v){styles[k]=v}},classList:{add(k){classes.add(k)},toggle(k,v){v?classes.add(k):classes.delete(k)}},append(){},addEventListener(){},focus(){}};
  const document={documentElement:{lang:language},getElementById(){return game},createElement(tag){const e={tagName:tag,getContext:tag==='canvas'?()=>({drawImage(){}}):undefined,toDataURL:()=>"data:image/jpeg;base64,test",dataset:{},children:[],classList:{toggle(){}},setAttribute(){},append(...children){this.children.push(...children)},prepend(){},addEventListener(){},focus(){},querySelector(){return buttons[0]},querySelectorAll(){return buttons.filter(b=>b.dataset.action)}};elements.push(e);if(tag==='button')buttons.push(e);return e}};
- const window={HEROES_MOBILE_ENGINE:manifest?{}:null,dispatchEvent(){events++},addEventListener(){}};
+ const window={HEROES_MOBILE_ENGINE:manifest?{}:null,dispatchEvent(){events++},addEventListener(type,fn){listeners[type]=fn}};
  vm.runInNewContext(code,{window,document,URLSearchParams,location:{search:query},matchMedia:()=>({matches:coarse}),innerWidth:width,innerHeight:height,screen:screenSize,Event:class{}});
- return {ui:window.HeroesMobileAdventure,buttons,elements,classes,events:()=>events};
+ return {ui:window.HeroesMobileAdventure,buttons,elements,classes,events:()=>events,window,document,styles,listeners};
 }
 assert.equal(setup().ui.profile(),null,'desktop keeps original engine');
 assert.equal(setup({coarse:true,width:390,height:844}).ui.profile().width,844,'portrait starts the same landscape layout');
@@ -47,9 +47,22 @@ assert.equal(moduleOptions.mobileActions[0],13,'native Save sends the engine sav
 moduleOptions.mobileAdventureState(false,0,true);
 assert(t.classes.has('mobile-adventure-active'),'small map popup retains the native map surface');
 assert.equal(t.ui.active,false,'map commands remain blocked behind the popup');
-moduleOptions.mobileAdventureState(false,0,false,[100,100,200,200]);
+moduleOptions.mobileAdventureState(false,0,true,true);
+assert.equal(t.elements.find(e=>e.className==='mobile-adventure-bottom').hidden,false,'tooltip retains bottom navigation');
+assert.equal(t.elements.find(e=>e.className==='mobile-adventure-bottom').inert,true,'tooltip blocks background actions');
+moduleOptions.mobileAdventureState(false,0,false,false);
 assert(!t.classes.has('mobile-adventure-active'),'large dialog uses classic fitting');
 moduleOptions.mobileAdventureState(true,0xffff);
 assert(t.classes.has('mobile-adventure-active'));
 
 assert.equal(t.elements.filter(e=>e.tagName==='canvas').length,0,'native modals do not allocate snapshot canvases');
+
+const tablet=setup({coarse:true,width:1024,height:700,screenSize:{width:1024,height:768}});
+const tabletOptions={},allocation=tablet.ui.profile();assert.equal(allocation.height,768,'reserve full tablet backing surface');
+tablet.ui.attach(tabletOptions,allocation);assert.equal(tabletOptions.mobileViewport.height,700);
+tablet.window.visualViewport={width:1024,height:768};tablet.document.fullscreenElement={};tablet.listeners.fullscreenchange();
+assert.equal(tabletOptions.mobileRenderSize.height,768,'fullscreen does not allocate a second canvas');
+assert.equal(tabletOptions.mobileViewport.height,740,'fullscreen map follows usable height');
+assert.equal(tablet.styles['--mobile-top-inset'],'28px');assert.equal(tablet.styles['--mobile-start-inset'],'64px','dismiss affordance cannot cover first button');
+assert.equal(tablet.styles['--mobile-view-height'],'740px');
+console.log('PASS: tablet fullscreen backing allocation, live geometry and system-control insets');

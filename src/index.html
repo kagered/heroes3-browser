@@ -46,7 +46,7 @@ main{max-width:1360px;margin:auto;padding:0 clamp(20px,5vw,64px)}header{min-heig
 <body>
 <main id="launcher">
 <header><a class="brand" href="/index.html" aria-label="Heroes III — главная" data-en-aria="Heroes III — home"><span class="brand-mark">III</span> HEROES III</a><div class="edition"><i></i>Laboratory</div></header>
-<p class="lab-notice" style="margin:20px 0 0;padding:12px 16px;border:1px solid #c6aa7855;border-radius:8px;color:#d7bc88" data-en="Laboratory · Touch devices use experimental map, town, hero, kingdom, market, tavern and settings layouts. Construction and save/load windows are still classic. Saves and downloads are separate from the main site.">Лаборатория · На сенсорном устройстве адаптированы карта, город, герой, королевство, рынок, таверна и настройки. Строительство, сохранение и загрузка пока классические. Сохранения и загрузки отделены от основного сайта.</p>
+<p class="lab-notice" style="margin:20px 0 0;padding:12px 16px;border:1px solid #c6aa7855;border-radius:8px;color:#d7bc88" data-en="Laboratory · Touch devices use experimental map, town, hero, kingdom, market, tavern and settings layouts. Save/load windows are still classic. Saves and downloads are separate from the main site.">Лаборатория · На сенсорном устройстве адаптированы карта, город, герой, королевство, рынок, таверна и настройки. Сохранение и загрузка пока классические. Сохранения и загрузки отделены от основного сайта.</p>
 <section class="hero" aria-label="Одиночная игра" data-en-aria="Single player">
 <div class="hero-copy"><div class="eyebrow" data-en="A timeless classic">Классика вне времени</div>
 <h1>Heroes III<span>of Might and Magic</span></h1>
@@ -73,7 +73,8 @@ main{max-width:1360px;margin:auto;padding:0 clamp(20px,5vw,64px)}header{min-heig
 <section class="save-panel" aria-label="Перенос сохранений" data-en-aria="Transfer saves">
 <div><h2 data-en="Take your progress with you">Твой прогресс — с тобой</h2><p data-en="Download a backup and import it on another device. Files are processed in your browser and are not uploaded to our server.">Скачай резервную копию и импортируй на другом устройстве. Файлы обрабатываются в браузере и не отправляются на наш сервер.</p><p style="margin-top:8px" data-en="Imported saves appear under Load Game the next time you launch. Use a ZIP from this build or VCMI 1.6.5 .vsgm1 / .vcgm1 files.">Импортированные партии появятся в «Загрузить игру» при следующем запуске. Подойдёт ZIP из этой сборки или файлы VCMI 1.6.5 .vsgm1 / .vcgm1.</p></div>
 <div><div class="save-buttons"><button id="export-saves" data-en="Export saves">Экспортировать</button><button id="import-saves" data-en="Import saves">Импортировать</button></div><!-- Custom save extensions are validated after selection; iPadOS may disable them with accept. -->
-<input id="save-files" type="file" multiple hidden><p id="saves-status" role="status" aria-live="polite"></p><a id="save-download" hidden></a></div>
+<input id="save-files" type="file" multiple hidden><p data-play-time></p><p data-en="Active play time stays in this browser and travels with exported saves.">Время игры хранится в браузере и переносится вместе с экспортом сохранений.</p>
+<p id="saves-status" role="status" aria-live="polite"></p><a id="save-download" hidden></a></div>
 </section>
 
 <details id="cache-panel" class="cache-panel disclosure"><summary><span class="summary-copy"><span class="summary-title" data-en="Game data">Данные игры</span><span class="summary-description" data-en="View storage use and clear downloaded files">Размер кэша и очистка скачанных файлов</span></span></summary>
@@ -139,6 +140,7 @@ window.applyPageLanguage(window.heroesPreferences.language());
 <script src="app.js"></script>
 <script src="mobile.js"></script>
 <script src="vendor/save-zip.js"></script>
+<script src="play-time.js"></script>
 <script src="save-transfer-core.js"></script>
 <script src="save-transfer.js"></script>
 <script src="cache-core.js"></script>

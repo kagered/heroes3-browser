@@ -28,7 +28,7 @@
     const value=await database();let rows;
     try{rows=await api.readSaves(value);}finally{value.close();}
     if(!rows.length){await summary();return;}
-    const bytes=api.makeArchive(rows);rows=null;
+    const bytes=api.makeArchive(rows,window.HeroesPlayTime?.snapshot());rows=null;
     downloadURL=URL.createObjectURL(new Blob([bytes],{type:'application/zip'}));
     const date=new Date();const stamp=[date.getFullYear(),String(date.getMonth()+1).padStart(2,'0'),String(date.getDate()).padStart(2,'0')].join('-');
     download.href=downloadURL;download.download=`heroes3-saves-${stamp}.zip`;download.hidden=false;
@@ -39,7 +39,7 @@
   picker.onchange=()=>{const files=Array.from(picker.files||[]);if(!files.length)return;void run(async()=>{
     release();report(tr('Проверяем сохранения…','Checking saves…'));
     const rows=await api.parseFiles(files),value=await database();let result;
-    try{result=await api.importRows(value,rows);}finally{value.close();}
+    try{result=await api.importRows(value,rows);for(const time of rows.playTime || [])window.HeroesPlayTime?.restore(time);}finally{value.close();}
     report(tr(`Импортировано сохранений: ${result.saves}.`+(result.renamed?' Совпадающие имена получили пометку (imported).':''),`Imported saves: ${result.saves}.`+(result.renamed?' Matching names were kept as separate (imported) copies.':'')));
   });};
   document.getElementById('start').addEventListener('click',event=>{if(working){event.preventDefault();event.stopImmediatePropagation();return;}release();},{capture:true});

@@ -4,13 +4,14 @@
   const force = new URLSearchParams(location.search).get('mobile-map');
   const touchDevice=matchMedia('(any-pointer: coarse)').matches;
   const eligible = force !== 'off' && (force === '1' || touchDevice);
-  let module, panel, mapTop, dialogTop, bottom, screenHelp, active=false, mapOverlay=false, session=false, initialized=false, lastMask=-1, heroHud, heroLabel, heroName, heroPoints, heroMeter, heroHint, pausePanel, pauseOpen=false, lastHeroKey="";
+  let module, panel, mapTop, dialogTop, bottom, screenHelp, active=false, mapOverlay=false, session=false, initialized=false, lastMask=-1, popup=false, heroHud, heroLabel, heroName, heroPoints, heroMeter, heroHint, pausePanel, pauseOpen=false, lastHeroKey="";
   const en = () => document.documentElement.lang === 'en';
   const text = (ru,english) => en()?english:ru;
   const actions = [[12,'К герою','Center hero'],[11,'Королевство','Kingdom'],[7,'Уровень','Layer'],[9,'+','+'],[10,'−','−'],[1,'Герой','Hero'],[2,'Следующий','Next hero'],[3,'Город','Town'],[8,'Двигаться','Move'],[4,'Магия','Spells'],[5,'Конец хода','End turn'],[6,'Меню','Menu']];
   function profile() {
     const screenWidth=touchDevice && typeof screen!=='undefined' ? Math.max(screen.width||0,screen.height||0) : 0;
-    return !!window.HEROES_MOBILE_ENGINE && eligible ? {width:Math.floor(Math.max(innerWidth,innerHeight,screenWidth)),height:Math.floor(Math.min(innerWidth,innerHeight))} : null;
+    const screenHeight=touchDevice && typeof screen!=='undefined' ? Math.min(screen.width||0,screen.height||0) : 0;
+    return !!window.HEROES_MOBILE_ENGINE && eligible ? {width:Math.floor(Math.max(innerWidth,innerHeight,screenWidth)),height:Math.floor(Math.max(Math.min(innerWidth,innerHeight),screenHeight))} : null;
   }
   function send(id) { if(active && module.mobileActions.length<4) module.mobileActions.push(id); }
   function escape() {
@@ -21,14 +22,23 @@
   }
   function updateGeometry() {
     if(!session)return;
-    const game=document.getElementById('game'), view={width:Math.max(innerWidth,innerHeight),height:Math.min(innerWidth,innerHeight)};
+    const game=document.getElementById('game'), visual=window.visualViewport;
+    const width=Math.round(visual?.width || innerWidth), height=Math.round(visual?.height || innerHeight);
+    // Safari overlays its system status and dismissal controls in tablet fullscreen.
+    const inset=touchDevice && document.fullscreenElement ? 28 : 0;
+    const view={width:Math.max(width,height),height:Math.min(width,height)-inset};
+    game.style.setProperty('--mobile-top-inset',inset+'px');
+    game.style.setProperty('--mobile-start-inset',inset?'64px':'8px');
+    const changed=module.mobileViewport.width!==view.width || module.mobileViewport.height!==view.height;
+    module.mobileViewport={width:view.width,height:view.height};
+    if(changed)module.mobileViewportRevision=(module.mobileViewportRevision||0)+1;
     game.classList.toggle('mobile-portrait',innerHeight>innerWidth);
     game.style.setProperty('--mobile-view-width',view.width+'px');
     game.style.setProperty('--mobile-view-height',view.height+'px');
-    const ratio=Math.max(800,module.mobileViewport.width)/Math.max(600,module.mobileViewport.height);
-    const width=Math.min(view.width,Math.max(1,view.height-48)*ratio);
-    game.style.setProperty('--mobile-dialog-width',width+'px');
-    game.style.setProperty('--mobile-dialog-height',width/ratio+'px');
+    const ratio=module.mobileRenderSize.width/module.mobileRenderSize.height;
+    const dialogWidth=Math.min(view.width,Math.max(1,view.height-48)*ratio);
+    game.style.setProperty('--mobile-dialog-width',dialogWidth+'px');
+    game.style.setProperty('--mobile-dialog-height',dialogWidth/ratio+'px');
     game.scrollTop=0;game.scrollLeft=0;
   }
   function remapPoint(point,canvas) {
@@ -63,13 +73,14 @@
     if(open)pausePanel.querySelector('button')?.focus({preventScroll:true});
     else document.getElementById('canvas').focus({preventScroll:true});
   }
-  function state(value,mask,overlay=false) {
+  function state(value,mask,overlay=false,isPopup=false) {
     if(!panel)return;
-    if(!initialized || active!==value || mapOverlay!==overlay) {
-      initialized=true;active=value;mapOverlay=overlay;
+    if(!initialized || active!==value || mapOverlay!==overlay || popup!==isPopup) {
+      initialized=true;active=value;mapOverlay=overlay;popup=isPopup;
       const game=document.getElementById('game');game.classList.toggle('mobile-adventure-active',active || mapOverlay);
       game.scrollTop=0;game.scrollLeft=0;
-      mapTop.hidden=!active;bottom.hidden=!active;dialogTop.hidden=active;
+      mapTop.hidden=!(active || popup);bottom.hidden=!(active || popup);dialogTop.hidden=active || popup;
+      mapTop.inert=bottom.inert=popup;
       if(!active){module.mobileActions.length=0;togglePause(false);}
       window.dispatchEvent(new Event('mobile-adventure-change'));
     }
@@ -87,6 +98,7 @@
     attach(options,viewport) {
       module=options;session=true;
       options.mobileAdventureUI=true;options.mobileViewport=viewport;
+      options.mobileRenderSize={width:Math.max(800,viewport.width),height:Math.max(600,viewport.height)};
       options.mobileActions=[];options.mobileAdventureState=state;options.mobileHeroState=heroState;
       const game=document.getElementById('game');game.classList.add('mobile-adventure-session');
       game.style.setProperty('--mobile-render-width',Math.max(800,viewport.width)+'px');
@@ -94,6 +106,7 @@
       updateGeometry();
       window.addEventListener('resize',updateGeometry);
       window.addEventListener('fullscreenchange',updateGeometry);
+      window.visualViewport?.addEventListener('resize',updateGeometry);
       panel=document.createElement('div');panel.className='mobile-adventure-shell';
       mapTop=document.createElement('nav');dialogTop=document.createElement('nav');bottom=document.createElement('nav');
       mapTop.className=dialogTop.className='mobile-adventure-top';bottom.className='mobile-adventure-bottom';
@@ -121,6 +134,7 @@
       pausePanel=document.createElement('section');pausePanel.className='mobile-pause-panel';pausePanel.hidden=true;
       pausePanel.setAttribute('role','dialog');pausePanel.setAttribute('aria-modal','true');pausePanel.setAttribute('aria-label',text('Меню игры','Game menu'));
       const title=document.createElement('h2');title.textContent=text('Пауза','Game menu');pausePanel.append(title);
+      const clock=document.createElement("p");clock.dataset.playTime="";clock.className="mobile-play-time";pausePanel.append(clock);
       const pauseItems=[[0,'Продолжить игру','Resume game'],[13,'Сохранить игру','Save game'],[14,'Загрузить игру','Load game'],[16,'Сведения о сценарии','Scenario information'],[11,'Королевство','Kingdom overview'],[6,'Настройки игры','Game settings'],[15,'В главное меню игры','Game main menu']];
       for(const [id,ru,english] of pauseItems){
         const button=document.createElement('button');button.type='button';button.textContent=en()?english:ru;

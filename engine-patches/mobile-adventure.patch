@@ -42,7 +42,15 @@
  		playerColoredImages.push_back(ImagePath::fromJson(entry));
 --- a/client/adventureMap/AdventureMapInterface.cpp
 +++ b/client/adventureMap/AdventureMapInterface.cpp
-@@ -31,6 +31,10 @@
+@@ -8,6 +8,7 @@
+  *
+  */
+ #include "StdInc.h"
++#include "../windows/CMessage.h"
+ #include "AdventureMapInterface.h"
+ 
+ #include "AdventureOptions.h"
+@@ -31,6 +32,10 @@
  #include "../gui/Shortcut.h"
  #include "../gui/WindowHandler.h"
  #include "../render/Canvas.h"
@@ -53,7 +61,24 @@
  #include "../render/IImage.h"
  #include "../render/IRenderHandler.h"
  #include "../render/IScreenHandler.h"
-@@ -159,6 +163,10 @@
+@@ -127,6 +132,16 @@
+ 
+ void AdventureMapInterface::activate()
+ {
++#ifdef VCMI_HTML5_BUILD
++ if(CMessage::isMobileSession() && LOCPLINT && LOCPLINT->makingTurn && mobileLastHero>=0 && !LOCPLINT->localState->getCurrentHero())
++ {
++  const auto & heroes=LOCPLINT->localState->getWanderingHeroes();
++  const CGHeroInstance * previous=nullptr;
++  for(const auto * hero:heroes)if(hero->id.getNum()==mobileLastHero)previous=hero;
++  if(!previous && !heroes.empty())previous=heroes.front();
++  if(previous)LOCPLINT->localState->setSelection(previous);
++ }
++#endif
+ 	CIntObject::activate();
+ 
+ 	adjustActiveness();
+@@ -159,6 +174,10 @@
  
  void AdventureMapInterface::showAll(Canvas & to)
  {
@@ -64,7 +89,7 @@
  	CIntObject::showAll(to);
  	dim(to);
  	LOCPLINT->cingconsole->show(to);
-@@ -937,3 +945,60 @@
+@@ -937,3 +956,69 @@
  
  	return spellBeingCasted->getAdventureMechanics().canBeCastAt(problem, LOCPLINT->cb.get(), LOCPLINT->localState->getCurrentHero(), targetPosition);
  }
@@ -125,13 +150,23 @@
 +	if(!hero) enabled &= ~((1u << 0) | (1u << 11));
 +	return enabled;
 +}
++
++void AdventureMapInterface::resizeMobileViewport()
++{
++#ifdef VCMI_HTML5_BUILD
++ int width=MAIN_THREAD_EM_ASM_INT({return Module.mobileViewport.width;});
++ int height=MAIN_THREAD_EM_ASM_INT({return Module.mobileViewport.height;});
++ widget->getMapView()->resizeMobileViewport(Point(std::min(width,GH.screenDimensions().x),std::max(1,std::min(height,GH.screenDimensions().y)-48)));
++#endif
++}
 --- a/client/adventureMap/AdventureMapInterface.h
 +++ b/client/adventureMap/AdventureMapInterface.h
-@@ -112,6 +112,8 @@
+@@ -112,6 +112,9 @@
  	void onScreenResize() override;
  
  public:
 +	unsigned mobileActions(int action);
++    void resizeMobileViewport();
 +	int mobileLastHero = -1;
  	AdventureMapInterface();
  
@@ -158,14 +193,24 @@
  #include "../render/Colors.h"
  #include "../render/Graphics.h"
  #include "../render/IFont.h"
-@@ -98,6 +104,40 @@
+@@ -98,7 +104,58 @@
  	{
  		boost::mutex::scoped_lock interfaceLock(GH.interfaceMutex);
  
+-		if (nullptr != curInt)
 +#ifdef VCMI_HTML5_BUILD
 +		if(MAIN_THREAD_EM_ASM_INT({ return Module.mobileAdventureUI ? 1 : 0; }))
 +		{
 +			bool active = adventureInt && windows().isTopWindow(adventureInt);
++            static int mobileRevision=-1;
++            int revision=MAIN_THREAD_EM_ASM_INT({return Module.mobileViewportRevision || 0;});
++            if(!adventureInt)mobileRevision=revision;
++            if(active && mobileRevision!=revision)
++            {
++             mobileRevision=revision;
++             std::weak_ptr<AdventureMapInterface> map=adventureInt;
++             dispatchMainThread([map](){if(auto live=map.lock();live && GH.windows().isTopWindow(live))live->resizeMobileViewport();});
++            }
 +			int action = MAIN_THREAD_EM_ASM_INT({ return (Module.mobileActions || []).shift() || 0; });
 +			if(active && action)
 +			{
@@ -193,12 +238,21 @@
 +					Point delta(x-content->pos.x,y-content->pos.y);if(delta!=Point(0,0)){content->moveBy(delta);windows().totalRedraw();}
 +				}
 +			}
-+			MAIN_THREAD_EM_ASM({Module.mobileAdventureState(!!$0,$1,!!$2);},active,enabled,mapOverlay);
++			bool mapPopup=mapOverlay && windows().isTopWindowPopup();
++            for(const auto & window:windows().findWindows<CIntObject>())
++             if(window.get()!=adventureInt.get() && !window->isPopupWindow())mapPopup=false;
++            MAIN_THREAD_EM_ASM({Module.mobileAdventureState(!!$0,$1,!!$2,!!$3);},active,enabled,mapOverlay,mapPopup);
 +		}
 +#endif
- 		if (nullptr != curInt)
++		#ifdef VCMI_HTML5_BUILD
++        bool playing=false;
++        for(const auto & window:windows().findWindows<CIntObject>())if(window.get()==adventureInt.get())playing=true;
++        MAIN_THREAD_EM_ASM({if(window.HeroesPlayTime)window.HeroesPlayTime.setPlaying(!!$0);},playing);
++#endif
++        if (nullptr != curInt)
  			curInt->update();
  
+ 		if (settings["video"]["showfps"].Bool())
 --- a/client/adventureMap/AdventureMapShortcuts.cpp
 +++ b/client/adventureMap/AdventureMapShortcuts.cpp
 @@ -10,6 +10,9 @@
@@ -665,7 +719,15 @@
 +}
 --- a/client/windows/CCastleInterface.h
 +++ b/client/windows/CCastleInterface.h
-@@ -24,6 +24,8 @@
+@@ -8,6 +8,7 @@
+  *
+  */
+ #pragma once
++#include "CMessage.h"
+ 
+ #include "../windows/CWindowObject.h"
+ #include "../widgets/Images.h"
+@@ -24,6 +25,8 @@
  VCMI_LIB_NAMESPACE_END
  
  class CButton;
@@ -674,7 +736,7 @@
  class CCastleBuildings;
  class CCreaturePic;
  class CGStatusBar;
-@@ -242,6 +244,23 @@
+@@ -242,6 +245,23 @@
  	std::vector<std::shared_ptr<CCreaInfo>> creainfo;//small icons of creatures (bottom-left corner);
  
  public:
@@ -698,20 +760,99 @@
  	std::shared_ptr<CTownList> townlist;
  
  	//TODO: move to private
+@@ -270,8 +290,16 @@
+ };
+ 
+ /// Hall window where you can build things
+-class CHallInterface : public CStatusbarWindow
+-{
++class CHallInterface : public CStatusbarWindow, public IMobileWindow
++{
++ std::shared_ptr<class CMobilePanel> mobilePanel;
++ void setupMobile();
++public:
++ bool isMobileDialog() const override{return mobilePanel!=nullptr;}
++ void requestMobileResize() override;
++ void keyPressed(EShortcut key) override;
++private:
++
+ 	class CBuildingBox : public CIntObject
+ 	{
+ 		const CGTownInstance * town;
+@@ -283,8 +311,10 @@
+ 		std::shared_ptr<CAnimImage> icon;
+ 		std::shared_ptr<CAnimImage> mark;
+ 		std::shared_ptr<CLabel> name;
++        std::shared_ptr<CLabel> mobileState;
+ 	public:
+ 		CBuildingBox(int x, int y, const CGTownInstance * Town, const CBuilding * Building);
++        void adaptMobile(Point dimensions);
+ 		void hover(bool on) override;
+ 		void clickPressed(const Point & cursorPosition) override;
+ 		void showPopupWindow(const Point & cursorPosition) override;
+@@ -301,8 +331,16 @@
+ };
+ 
+ ///  Window where you can decide to buy a building or not
+-class CBuildWindow: public CStatusbarWindow
+-{
++class CBuildWindow: public CStatusbarWindow, public IMobileWindow
++{
++ std::shared_ptr<class CMobilePanel> mobilePanel;
++ void setupMobile();
++public:
++ bool isMobileDialog() const override{return mobilePanel!=nullptr;}
++ void requestMobileResize() override;
++ void keyPressed(EShortcut key) override;
++private:
++
+ 	const CGTownInstance * town;
+ 	const CBuilding * building;
+ 
+@@ -376,8 +414,16 @@
+ };
+ 
+ /// The mage guild screen where you can see which spells you have
+-class CMageGuildScreen : public CStatusbarWindow
+-{
++class CMageGuildScreen : public CStatusbarWindow, public IMobileWindow
++{
++ std::shared_ptr<class CMobilePanel> mobilePanel;
++ void setupMobile();
++public:
++ bool isMobileDialog() const override{return mobilePanel!=nullptr;}
++ void requestMobileResize() override;
++ void keyPressed(EShortcut key) override;
++private:
++
+ 	class Scroll : public CIntObject
+ 	{
+ 		const CSpell * spell;
+@@ -386,6 +432,9 @@
+ 
+ 	public:
+ 		Scroll(Point position, const CSpell *Spell, ObjectInstanceID townId);
++        void adaptMobile();
++        int mobileLevel() const;
++        std::string mobileName() const;
+ 		void clickPressed(const Point & cursorPosition) override;
+ 		void showPopupWindow(const Point & cursorPosition) override;
+ 		void hover(bool on) override;
 --- a/client/windows/CCastleInterface.cpp
 +++ b/client/windows/CCastleInterface.cpp
-@@ -14,6 +14,10 @@
+@@ -14,6 +14,11 @@
  #include "CMarketWindow.h"
  #include "InfoWindows.h"
  #include "GUIClasses.h"
 +#include "CMessage.h"
++#include "MobileWindow.h"
 +#ifdef VCMI_HTML5_BUILD
 +#include <emscripten.h>
 +#endif
  #include "QuickRecruitmentWindow.h"
  #include "CCreatureWindow.h"
  
-@@ -1325,8 +1329,140 @@
+@@ -1325,8 +1330,140 @@
  	}
  }
  
@@ -853,7 +994,7 @@
  	town(Town)
  {
  	OBJECT_CONSTRUCTION;
-@@ -1372,6 +1508,7 @@
+@@ -1372,6 +1509,7 @@
  	townlist->onSelect = std::bind(&CCastleInterface::townChange, this);
  
  	recreateIcons();
@@ -861,7 +1002,7 @@
  	if (!from)
  		adventureInt->onAudioPaused();
  	CCS->musich->playMusicFromSet("faction", town->getFaction()->getJsonKey(), true, false);
-@@ -1457,6 +1594,7 @@
+@@ -1457,6 +1595,7 @@
  
  void CCastleInterface::recreateIcons()
  {
@@ -869,7 +1010,7 @@
  	OBJECT_CONSTRUCTION;
  	size_t iconIndex = town->getTown()->clientInfo.icons[town->hasFort()][town->built >= LOCPLINT->cb->getSettings().getInteger(EGameSettings::TOWNS_BUILDINGS_PER_TURN_CAP)];
  
-@@ -1499,6 +1637,7 @@
+@@ -1499,6 +1638,7 @@
  
  void CCastleInterface::keyPressed(EShortcut key)
  {
@@ -877,6 +1018,108 @@
  	switch(key)
  	{
  	case EShortcut::MOVE_UP:
+@@ -1675,6 +1815,7 @@
+ 				boxes[row].push_back(std::make_shared<CBuildingBox>(posX, posY, town, building));
+ 		}
+ 	}
++ setupMobile();
+ }
+ 
+ CBuildWindow::CBuildWindow(const CGTownInstance *Town, const CBuilding * Building, EBuildingState state, bool rightClick):
+@@ -1740,6 +1881,7 @@
+ 		cancel = std::make_shared<CButton>(Point(290, 445), AnimationPath::builtin("ICANCEL"), CButton::tooltip(tooltipNo.toString()), [&](){ close();}, EShortcut::GLOBAL_CANCEL);
+ 		cancel->setBorderColor(Colors::METALLIC_GOLD);
+ 	}
++ setupMobile();
+ }
+ 
+ void CBuildWindow::buyFunc()
+@@ -2075,6 +2217,7 @@
+ 		}
+ 	}
+ 
++ setupMobile();
+ 	redraw();
+ }
+ 
+@@ -2209,3 +2352,77 @@
+ 
+ 	costIcon = std::make_shared<CAnimImage>(AnimationPath::builtin("RESOURCE"), GameResID(EGameResID::GOLD), 0, 148, 244);
+ }
++
++void CHallInterface::CBuildingBox::adaptMobile(Point size)
++{
++ pos.w=size.x;pos.h=size.y;
++ icon->moveTo(pos.topLeft()+Point((pos.w-150)/2,0));
++ header->disable();if(mark)mark->disable();name->disable();
++ OBJECT_CONSTRUCTION;
++ auto label=std::make_shared<CMultiLineLabel>(Rect(4,72,pos.w-8,std::max(24,pos.h-104)),FONT_MEDIUM,ETextAlignment::CENTER,Colors::WHITE,building->getNameTranslated());
++ // Keep the label owned by this original click target.
++ name=label;
++ std::string status=state==EBuildingState::ALLOWED?mobileText("Доступно","Available"):state==EBuildingState::ALREADY_PRESENT?mobileText("Построено","Built"):mobileText("Недоступно","Unavailable");
++ mobileState=std::make_shared<CLabel>(pos.w/2,pos.h-18,FONT_MEDIUM,ETextAlignment::CENTER,state==EBuildingState::ALLOWED?Colors::GREEN:Colors::YELLOW,status);
++}
++void CHallInterface::setupMobile()
++{
++ const int previousPage=mobilePanel?mobilePanel->current:0;
++ const Rect area=prepareMobileWindow(*this,mobilePanel);if(area.w<=0)return;
++ addUsedEvents(KEYBOARD);OBJECT_CONSTRUCTION;
++ std::vector<std::shared_ptr<CBuildingBox>> entries;
++ for(auto & row:boxes)for(auto & box:row)entries.push_back(box);
++ int columns=pos.w>=600?3:2,rows=pos.h>=360?2:1,per=columns*rows;
++ int count=std::max(1,(int(entries.size())+per-1)/per);
++ std::vector<std::string> tabs;for(int i=0;i<count;++i)tabs.push_back(std::to_string(i+1));
++ mobilePanel=std::make_shared<CMobilePanel>(Point(pos.w,pos.h),mobileText("Строительство","Build"),tabs);
++ int cell=(pos.w-32)/columns,height=(pos.h-112)/rows;
++ for(int i=0;i<entries.size();++i){int local=i%per;mobilePanel->adopt(i/per,entries[i],Point(16+(local%columns)*cell,44+(local/columns)*height));entries[i]->adaptMobile(Point(cell-8,height-6));}
++ mobilePanel->painters.push_back([entries](Canvas & to){for(const auto & box:entries)if(box->isActive())to.drawBorder(box->pos,Colors::METALLIC_GOLD);});
++ mobilePanel->select(std::min(previousPage,int(mobilePanel->pages.size())-1));
++}
++void CHallInterface::requestMobileResize(){if(mobilePanel)mobilePanel->resize(this,[this](){setupMobile();});}
++void CHallInterface::keyPressed(EShortcut key){if(mobilePanel && (key==EShortcut::GLOBAL_CANCEL || key==EShortcut::GLOBAL_RETURN)){close();return;}CStatusbarWindow::keyPressed(key);}
++
++void CBuildWindow::setupMobile()
++{
++ const Rect area=prepareMobileWindow(*this,mobilePanel);if(area.w<=0)return;
++ addUsedEvents(KEYBOARD);OBJECT_CONSTRUCTION;
++ mobilePanel=std::make_shared<CMobilePanel>(Point(pos.w,pos.h),building->getNameTranslated(),std::vector<std::string>{});
++ int half=pos.w/2;
++ mobilePanel->add<CTextBox>(0,building->getDescriptionTranslated(),Rect(16,42,half-24,pos.h-108),CSlider::BROWN,FONT_MEDIUM,ETextAlignment::TOPLEFT);
++ std::string prices;for(GameResID id:GameResID::ALL_RESOURCES())if(building->resources[id]){if(!prices.empty())prices+="\n";prices+=CGI->generaltexth->restypes[id]+": "+std::to_string(building->resources[id]);}
++ mobilePanel->add<CTextBox>(0,stateText->label->getText()+"\n\n"+prices,Rect(half+8,42,half-24,pos.h-108),CSlider::BROWN,FONT_MEDIUM,ETextAlignment::TOPLEFT);
++ if(buy){auto button=mobilePanel->add<CMobileTownButton>(0,Rect(12,pos.h-52,half-20,44),mobileText("Построить","Build"),[this](){if(!buy->isBlocked())buyFunc();});button->setAvailable(!buy->isBlocked());}
++ mobilePanel->add<CMobileTownButton>(0,Rect(half+8,pos.h-52,half-20,44),mobileText("Закрыть","Close"),[this](){close();});
++}
++void CBuildWindow::requestMobileResize(){if(mobilePanel)mobilePanel->resize(this,[this](){setupMobile();});}
++void CBuildWindow::keyPressed(EShortcut key){if(mobilePanel && (key==EShortcut::GLOBAL_CANCEL || key==EShortcut::GLOBAL_RETURN)){close();return;}CStatusbarWindow::keyPressed(key);}
++
++void CMageGuildScreen::Scroll::adaptMobile(){image->setScale(Point(40,40));pos.w=40;pos.h=40;}
++int CMageGuildScreen::Scroll::mobileLevel() const{return spell->getLevel();}
++std::string CMageGuildScreen::Scroll::mobileName() const{return spell->getNameTranslated();}
++void CMageGuildScreen::setupMobile()
++{
++ const int previousPage=mobilePanel?mobilePanel->current:0;
++ const Rect area=prepareMobileWindow(*this,mobilePanel);if(area.w<=0)return;
++ addUsedEvents(KEYBOARD);OBJECT_CONSTRUCTION;
++ mobilePanel=std::make_shared<CMobilePanel>(Point(pos.w,pos.h),mobileText("Гильдия магов","Mage guild"),std::vector<std::string>{"I","II","III","IV","V"});
++ int columns=pos.w>=600?3:2,cell=(pos.w-32)/columns;
++ std::array<int,5> positions{};
++ for(const auto & scroll:spells)
++ {
++  int page=std::clamp(scroll->mobileLevel()-1,0,4),index=positions[page]++;
++  int row=index/columns, rowHeight=(pos.h-104)/((6+columns-1)/columns);
++  int x=16+(index%columns)*cell,y=42+row*rowHeight;
++  auto target=mobilePanel->add<CMobileTownButton>(page,Rect(x,y,cell-8,rowHeight-4),"",[scroll](){scroll->clickPressed(scroll->pos.topLeft());});
++  // Original spell scroll artwork remains alongside its translated name.
++  mobilePanel->adopt(page,scroll,Point(x+4,y+2));
++  scroll->adaptMobile();
++  mobilePanel->add<CTextBox>(page,scroll->mobileName(),Rect(x+48,y+2,cell-60,rowHeight-8),0,FONT_MEDIUM,ETextAlignment::CENTER);
++ }
++ for(int i=0;i<5;++i)if(!positions[i])mobilePanel->add<CTextBox>(i,mobileText("Заклинаний этого уровня пока нет","No spells at this level yet"),Rect(20,70,pos.w-40,60),0,FONT_MEDIUM,ETextAlignment::CENTER);
++ mobilePanel->select(std::min(previousPage,int(mobilePanel->pages.size())-1));
++}
++void CMageGuildScreen::requestMobileResize(){if(mobilePanel)mobilePanel->resize(this,[this](){setupMobile();});}
++void CMageGuildScreen::keyPressed(EShortcut key){if(mobilePanel && (key==EShortcut::GLOBAL_CANCEL || key==EShortcut::GLOBAL_RETURN)){close();return;}CStatusbarWindow::keyPressed(key);}
 --- a/client/windows/CMarketWindow.cpp
 +++ b/client/windows/CMarketWindow.cpp
 @@ -10,6 +10,8 @@
@@ -929,7 +1172,7 @@
 +  for(int i=0;i<panel->slots.size();++i)
 +  {
 +   auto slot=panel->slots[i];slot->moveTo(pos.topLeft()+Point(side*half+12+(i%4)*cell,rowTop+(i/4)*rowStep));
-+   slot->pos.w=cell-6;slot->pos.h=compact?44:52;slot->enable();
++   slot->pos.w=cell-6;slot->pos.h=compact?44:52;slot->fitSelectionToSlot();slot->enable();
 +   slot->image->moveTo(slot->pos.topLeft()+Point((slot->pos.w-32)/2,2));
 +   slot->subtitle->moveTo(slot->pos.topLeft()+Point(slot->pos.w/2,compact?39:43));
 +   slot->subtitle->font=compact?FONT_SMALL:FONT_MEDIUM;
@@ -1576,6 +1819,178 @@
  	// sets the same border color for all button states.
  	void setBorderColor(std::optional<ColorRGBA> borderColor);
  
+--- a/client/widgets/MiscWidgets.h
++++ b/client/widgets/MiscWidgets.h
+@@ -262,4 +262,5 @@
+ 	bool isSelected() const;
+ 	void setSelectionWidth(int width);
+ 	void moveSelectionForeground();
+-};
++	void fitSelectionToSlot();
++};
+--- a/client/widgets/MiscWidgets.cpp
++++ b/client/widgets/MiscWidgets.cpp
+@@ -718,3 +718,8 @@
+ {
+ 	moveChildForeground(selection.get());
+ }
++
++void SelectableSlot::fitSelectionToSlot()
++{
++ selection->pos=pos;
++}
+--- a/client/windows/CQuestLog.h
++++ b/client/windows/CQuestLog.h
+@@ -14,6 +14,7 @@
+ #include "../widgets/Images.h"
+ #include "../adventureMap/CMinimap.h"
+ #include "CWindowObject.h"
++#include "CMessage.h"
+ 
+ VCMI_LIB_NAMESPACE_BEGIN
+ 
+@@ -79,8 +80,16 @@
+ 	void showAll(Canvas & to) override;
+ };
+ 
+-class CQuestLog : public CWindowObject
++class CQuestLog : public CWindowObject, public IMobileWindow
+ {
++ std::shared_ptr<class CMobilePanel> mobilePanel;
++ int mobilePage=0;
++ void setupMobile();
++public:
++ bool isMobileDialog() const override{return mobilePanel!=nullptr;}
++ void requestMobileResize() override;
++ void keyPressed(EShortcut key) override;
++private:
+ 	int questIndex;
+ 	const QuestInfo * currentQuest;
+ 	std::shared_ptr<CComponentBox> componentsBox;
+--- a/client/windows/CQuestLog.cpp
++++ b/client/windows/CQuestLog.cpp
+@@ -9,6 +9,7 @@
+  */
+ #include "StdInc.h"
+ #include "CQuestLog.h"
++#include "MobileWindow.h"
+ 
+ #include "../CGameInfo.h"
+ #include "../CPlayerInterface.h"
+@@ -135,6 +136,7 @@
+ 
+ 	recreateLabelList();
+ 	recreateQuestList(0);
++ setupMobile();
+ }
+ 
+ void CQuestLog::recreateLabelList()
+@@ -203,7 +205,7 @@
+ void CQuestLog::showAll(Canvas & to)
+ {
+ 	CWindowObject::showAll(to);
+-	if(questIndex >= 0 && questIndex < labels.size())
++	if(!mobilePanel && questIndex >= 0 && questIndex < labels.size())
+ 	{
+ 		//TODO: use child object to selection rect
+ 		Rect rect = Rect::createAround(labels[questIndex]->pos, 1);
+@@ -321,3 +323,38 @@
+ 	recreateQuestList(0);
+ 	redraw();
+ }
++
++void CQuestLog::setupMobile()
++{
++ const Rect area=prepareMobileWindow(*this,mobilePanel);if(area.w<=0)return;
++ if(labels.empty())currentQuest=nullptr;
++ addUsedEvents(KEYBOARD);OBJECT_CONSTRUCTION;
++ mobilePanel=std::make_shared<CMobilePanel>(Point(pos.w,pos.h),mobileText("Задания","Quest log"),std::vector<std::string>{});
++ int left=pos.w*2/5,per=std::max(1,(pos.h-108)/52),pages=std::max(1,(int(labels.size())+per-1)/per);
++ mobilePage=std::clamp(mobilePage,0,pages-1);
++ auto previous=mobilePanel->add<CMobileTownButton>(0,Rect(pos.w-148,0,60,40),"<",[this](){--mobilePage;setupMobile();});previous->setAvailable(mobilePage>0);
++ auto next=mobilePanel->add<CMobileTownButton>(0,Rect(pos.w-80,0,60,40),">",[this](){++mobilePage;setupMobile();});next->setAvailable(mobilePage+1<pages);
++ if(labels.empty())mobilePanel->add<CTextBox>(0,mobileText("Пока нет заданий","No quests yet"),Rect(20,60,pos.w-40,60),0,FONT_MEDIUM,ETextAlignment::CENTER);
++ for(int i=mobilePage*per;i<labels.size() && i<(mobilePage+1)*per;++i)
++ {
++  auto label=labels[i];
++  auto button=mobilePanel->add<CMobileTownButton>(0,Rect(12,44+(i%per)*52,left-24,46),label->getText(),[this,label](){label->callback();setupMobile();});button->setSelected(i==questIndex);
++ }
++ if(!labels.empty())
++ {
++  mobilePanel->add<CTextBox>(0,description->label->getText(),Rect(left+4,44,pos.w-left-16,pos.h-106),CSlider::BROWN,FONT_MEDIUM,ETextAlignment::TOPLEFT);
++ }
++ int width=(pos.w-48)/4;
++ mobilePanel->add<CMobileTownButton>(0,Rect(12,pos.h-52,width,44),hideComplete?mobileText("Все задания","All quests"):mobileText("Только активные","Active only"),[this](){toggleComplete(!hideComplete);mobilePage=0;setupMobile();});
++ auto details=mobilePanel->add<CMobileTownButton>(0,Rect(20+width,pos.h-52,width,44),mobileText("Условия","Requirements"),[this](){
++  if(!currentQuest)return;
++  MetaString text;std::vector<Component> components;
++  currentQuest->quest->getVisitText(currentQuest->obj->cb,text,components,true);
++  std::vector<std::shared_ptr<CComponent>> widgets;for(const auto & component:components)widgets.push_back(std::make_shared<CComponent>(component,CComponent::small));
++  LOCPLINT->showInfoDialog(text.toString(),widgets);
++ });details->setAvailable(currentQuest!=nullptr);
++ auto locate=mobilePanel->add<CMobileTownButton>(0,Rect(28+2*width,pos.h-52,width,44),mobileText("На карте","Locate"),[this](){if(currentQuest && currentQuest->obj){adventureInt->centerOnTile(currentQuest->obj->visitablePos());close();}});locate->setAvailable(currentQuest && currentQuest->obj);
++ mobilePanel->add<CMobileTownButton>(0,Rect(36+3*width,pos.h-52,width,44),mobileText("Закрыть","Close"),[this](){close();});
++}
++void CQuestLog::requestMobileResize(){if(mobilePanel)mobilePanel->resize(this,[this](){setupMobile();});}
++void CQuestLog::keyPressed(EShortcut key){if(mobilePanel && (key==EShortcut::GLOBAL_CANCEL || key==EShortcut::GLOBAL_RETURN)){close();return;}CWindowObject::keyPressed(key);}
+--- a/client/mapView/MapViewCache.h
++++ b/client/mapView/MapViewCache.h
+@@ -63,6 +63,7 @@
+ public:
+ 	explicit MapViewCache(const std::shared_ptr<MapViewModel> & model);
+ 	~MapViewCache();
++    void resizeViewport();
+ 
+ 	/// invalidates cache of specified object
+ 	void invalidate(const std::shared_ptr<IMapRendererContext> & context, const ObjectInstanceID & object);
+--- a/client/mapView/MapViewCache.cpp
++++ b/client/mapView/MapViewCache.cpp
+@@ -229,3 +229,10 @@
+ 	update(context);
+ 	render(context, *terrainTransition, true);
+ }
++
++void MapViewCache::resizeViewport()
++{
++ terrain=std::make_unique<Canvas>(model->getCacheDimensionsPixels(),CanvasScalingPolicy::AUTO);
++ terrainTransition=std::make_unique<Canvas>(model->getPixelsVisibleDimensions(),CanvasScalingPolicy::AUTO);
++ cachedSize=Point(0,0); // update() rebuilds checksums and the new canvas on the next frame.
++}
+--- a/client/mapView/MapView.h
++++ b/client/mapView/MapView.h
+@@ -64,6 +64,7 @@
+ 	void show(Canvas & to) override;
+ 
+ 	MapView(const Point & offset, const Point & dimensions);
++    void resizeMobileViewport(const Point & dimensions);
+ 
+ 	/// Moves current view to another level, preserving position
+ 	void onMapLevelSwitched();
+--- a/client/mapView/MapView.cpp
++++ b/client/mapView/MapView.cpp
+@@ -21,6 +21,7 @@
+ #include "../CPlayerInterface.h"
+ #include "../adventureMap/AdventureMapInterface.h"
+ #include "../gui/CGuiHandler.h"
++#include "../gui/WindowHandler.h"
+ #include "../render/CAnimation.h"
+ #include "../render/Canvas.h"
+ #include "../render/IImage.h"
+@@ -220,3 +221,14 @@
+ 	controller->setViewCenter(tileToCenter);
+ 
+ }
++
++void MapView::resizeMobileViewport(const Point & dimensions)
++{
++ if(pos.dimensions()==dimensions)return;
++ pos.w=dimensions.x;pos.h=dimensions.y;
++ model->setViewDimensions(dimensions);
++ actions->pos=pos;
++ actions->clickCancel(pos.topLeft());
++ tilesCache->resizeViewport();
++ GH.windows().totalRedraw();
++}
 --- /dev/null
 +++ b/client/windows/MobileWindow.h
 @@ -0,0 +1,94 @@

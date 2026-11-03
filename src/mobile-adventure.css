@@ -1,11 +1,11 @@
 /* Mobile session always presents a landscape surface, with fixed-size controls. */
-#game.mobile-adventure-session{inset:auto;left:0;top:0;width:var(--mobile-view-width);height:var(--mobile-view-height);padding:0;overflow:clip!important}
+#game.mobile-adventure-session{inset:auto;left:0;top:var(--mobile-top-inset,0px);width:var(--mobile-view-width);height:var(--mobile-view-height);padding:0;overflow:clip!important}
 #game.mobile-adventure-session.mobile-portrait{left:50%;top:50%;transform:translate(-50%,-50%) rotate(90deg)}
 #game.mobile-adventure-session canvas{position:absolute;left:50%;top:calc(50% + 24px);width:var(--mobile-dialog-width)!important;height:var(--mobile-dialog-height)!important;max-width:none;max-height:none;aspect-ratio:auto;transform:translate(-50%,-50%)!important}
 #game.mobile-adventure-active canvas{left:0;top:0;width:var(--mobile-render-width)!important;height:var(--mobile-render-height)!important;transform:none!important}
 #game.mobile-adventure-session .touch-tools,#game.mobile-adventure-session>#back,#game.mobile-adventure-session>#fullscreen,#game.mobile-adventure-session .orientation-note{display:none!important}
 .mobile-adventure-shell [hidden]{display:none!important}
-.mobile-adventure-shell nav{position:absolute;left:0;right:0;display:flex;align-items:center;gap:6px;background:#191b20;border-color:#6b5d41;padding:2px max(8px,env(safe-area-inset-right)) 2px max(8px,env(safe-area-inset-left));z-index:6}
+.mobile-adventure-shell nav{position:absolute;left:0;right:0;display:flex;align-items:center;gap:6px;background:#191b20;border-color:#6b5d41;padding:2px max(8px,env(safe-area-inset-right)) 2px max(8px,env(safe-area-inset-left),var(--mobile-start-inset,8px));z-index:6}
 .mobile-adventure-top{top:0;height:48px;border-bottom:1px solid}
 .mobile-adventure-bottom{bottom:0;height:64px;border-top:1px solid}
 .mobile-adventure-shell button{min-height:44px;min-width:44px;border:1px solid #675b43;border-radius:7px;background:#292b30;color:#eee5d3;font:600 13px system-ui;padding:6px 10px;touch-action:manipulation}
@@ -34,3 +34,6 @@
 .mobile-hero-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
 .mobile-hero-points{flex:none;font-variant-numeric:tabular-nums}
 
+
+.mobile-play-time{grid-column:1/-1;color:#bdb39e;margin:0;font:14px system-ui}
+@media(max-height:430px){.mobile-pause-panel{gap:8px;padding:12px 20px}.mobile-pause-panel h2{font-size:20px;margin:0}.mobile-pause-panel button{min-height:46px;font-size:15px;padding:8px 14px}}

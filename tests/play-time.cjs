@@ -1,0 +1,15 @@
+const assert=require('assert/strict'),vm=require('vm'),fs=require('fs');
+const {merge,valid,format}=require('../src/play-time.js');
+assert.deepEqual(merge({'a':100,'b':30},{'a':80,'c':10}),{a:100,b:30,c:10});
+const imported={a:500,b:80};assert.deepEqual(merge(merge({},imported),imported),imported,'reimport must not double time');
+assert.deepEqual(valid({a:-1,b:NaN,c:Infinity,d:'10',e:5}),{e:5});assert.equal(format(3720000),'1:02:00');
+let now=0,hidden=false,store={},ticks=[],events={};const labels=[{textContent:''}];
+const document={documentElement:{lang:'en'},get hidden(){return hidden},querySelectorAll:()=>labels,addEventListener:(type,fn)=>events[type]=fn};
+const window={crypto:{randomUUID:()=> 'test-device'},addEventListener:(type,fn)=>events[type]=fn};
+vm.runInNewContext(fs.readFileSync('src/play-time.js','utf8'),{window,document,performance:{now:()=>now},localStorage:{getItem:k=>store[k],setItem:(k,v)=>store[k]=v},setInterval:fn=>ticks.push(fn)});
+window.HeroesPlayTime.setPlaying(true);now=5000;ticks[0]();assert.equal(window.HeroesPlayTime.snapshot()['test-device'],5000);
+hidden=true;events.visibilitychange();now+=5000;ticks[0]();assert.equal(window.HeroesPlayTime.snapshot()['test-device'],5000,'hidden tab does not count');
+hidden=false;events.visibilitychange();now+=3600000;ticks[0]();assert.equal(window.HeroesPlayTime.snapshot()['test-device'],5000,'suspension gap does not count');
+window.HeroesPlayTime.setPlaying(false);now+=2000;ticks[0]();assert.equal(window.HeroesPlayTime.snapshot()['test-device'],5000,'main menu does not count');
+window.HeroesPlayTime.restore({other:4000});window.HeroesPlayTime.restore({other:4000});assert.equal(window.HeroesPlayTime.snapshot().other,4000);
+console.log('PASS: time ledger, repeat imports, malformed data, active/hidden/suspended/main-menu accounting');

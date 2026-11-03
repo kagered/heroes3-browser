@@ -107,3 +107,14 @@ The mobile settings implementation must not receive the legacy lazy-tab exit bit
 ## Immutable mobile engine deployments
 
 The installer writes all four mobile engine files under a content-derived `vendor-mobile/<build>/` directory and puts that base and checksums in `mobile-engine.js`. Earlier directories and legacy root files are retained, so cached launchers cannot mix a previous WebAssembly module with a newly deployed loader. The manifest is served with `Cache-Control: no-store`; the launcher is revalidated. The native-settings capability flag keeps legacy cached builds compatible with their original exit bridge.
+
+
+### Mobile adventure v8
+
+- Restore the last available wandering hero when returning to the adventure map, so closing Town or kingdom windows does not leave movement disabled by a town selection.
+- The canvas backing allocation reserves the device screen, while the live map area follows the visual viewport. Safari fullscreen reserves its system status strip and left dismissal affordance; native panels reflow after geometry changes. Map resizing updates the existing view, input rectangle and tile canvases while retaining its controller, camera, route and observer; it never reconstructs AdventureMapWidget during an active game. Initial game loading does not trigger a redundant map resize.
+- Map right-button tooltips retain the top and bottom navigation, inert until release. Other modal windows retain their own navigation.
+- Market selection borders match their resized slots.
+- Construction, building confirmation, mage guild and quest log have native layouts. Original build/research/quest actions and checks remain authoritative.
+- Active game time is a browser-side ledger, counted by the lab mobile engine while a game exists in its window stack. Hidden/suspended tabs do not accrue time. It is displayed on the home page and pause menu, and included as optional metadata in the existing v1 save archive. Reimport merges per-session maxima to prevent double counting. This is total tracked play time, not a timer embedded in individual VCMI saves; old saves have no historical time to recover.
+- Save/load and advanced market/kingdom modes remain classic. iPad Safari fullscreen still requires a physical-device check.
