@@ -138,3 +138,14 @@ Construction and build confirmations use content-sized, vertically centered wind
 All native buttons briefly illuminate on press. Individual-dwelling recruitment now includes adventure-map dwellings (level -1), uses a single visible creature choice with Previous/Next variant controls, disables zero-quantity purchases, and displays a request notice. A green confirmation follows an observed stock reduction while the recruitment window remains open. An initial request notice alone does not claim server acceptance.
 
 iPad browser sessions no longer request fullscreen automatically. Screen explains Safari's system gesture and offers explicit fullscreen opt-in, or Add to Home Screen for a standalone launch. Other touch devices retain their previous behavior. Page gestures remain suppressed over the game surface; the website cannot suppress Safari or iPadOS system gestures.
+
+
+### Mobile adventure v11
+
+The spellbook, save/load screens and in-game scenario information now have native mobile layouts. The spellbook shows independently sized spell cards, school and combat/adventure filters, paging, spell cost and current mana. Casting and long-press descriptions reuse the original SpellArea handlers. The source hero's learned/available spells and the original cast validation remain authoritative. Desktop spellbook layout is unchanged.
+
+Save/load has paged 44-pixel file rows, folder navigation, selection feedback, a larger filename input for saving and separate scenario/player details. Original filename filtering, overwrite confirmation, save callbacks and load validation remain in use. Disabled classic controls are kept out of touch input. Escape and the large close action dismiss native screens. Map-size filters, sorting and delete mode are not yet exposed in this first mobile file-browser layout.
+
+In-game scenario information uses Scenario, Players and Rules pages. It remains read-only, as in the original screen; player colors, control type, starting town, hero and bonus are shown without changing the party. New-game lobby customization is outside this change.
+
+Validation: full pinned Emscripten build and required `ninja -j32 html5`, public JavaScript/Python checks and patch application checks. Interactive browser verification is unavailable in this session because Browser use is disabled by the app. Physical iPad verification of spell casting/descriptions, save/overwrite/load, folder paging, close/return-to-map and orientation remains required. Production and the original desktop engine are not replaced.

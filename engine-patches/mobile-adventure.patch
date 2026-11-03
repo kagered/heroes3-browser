@@ -304,11 +304,12 @@
  /// Class which draws formatted text messages and generates chat windows
  class CMessage
  {
-@@ -28,6 +38,8 @@
+@@ -28,6 +38,9 @@
  	static SDL_Surface * drawDialogBox(int w, int h, PlayerColor playerColor = PlayerColor(1));
  
  public:
 + static bool isMobileSession();
++ static Rect mobileScreenArea();
 +	static Rect mobileDialogArea();
  	/// Draw border on exiting surface
  	static void drawBorder(PlayerColor playerColor, Canvas & to, int w, int h, int x, int y);
@@ -329,7 +330,7 @@
  
  #include "../gui/CGuiHandler.h"
  #include "../render/CAnimation.h"
-@@ -212,8 +219,83 @@
+@@ -212,8 +219,93 @@
  	return 0;
  }
  
@@ -359,6 +360,16 @@
 +		}
 +	}
 +	if(!mapLayer) return Rect();
++ return mobileScreenArea();
++#else
++ return Rect();
++#endif
++}
++
++Rect CMessage::mobileScreenArea()
++{
++#ifdef VCMI_HTML5_BUILD
++ if(!isMobileSession())return Rect();
 +	int w = MAIN_THREAD_EM_ASM_INT({return Math.min(Module.mobileViewport.width,Math.max(innerWidth,innerHeight));});
 +	int h = MAIN_THREAD_EM_ASM_INT({return Math.min(Module.mobileViewport.height,Math.min(innerWidth,innerHeight));});
 +	return Rect(16,64,std::max(200,w-32),std::max(120,h-80));
@@ -2324,7 +2335,7 @@
 + {
 +  CIntObject::showAll(to);
 +  for(auto & paint:painters)paint(to);
-+  CMessage::drawBorder(LOCPLINT->playerID,to,pos.w+28,pos.h+29,pos.x-14,pos.y-15);
++  CMessage::drawBorder(LOCPLINT?LOCPLINT->playerID:PlayerColor(1),to,pos.w+28,pos.h+29,pos.x-14,pos.y-15);
 + }
 + void show(Canvas & to) override {for(auto & refresh:refreshers)refresh();CIntObject::show(to);showAll(to);}
 + void resize(const CIntObject * owner,std::function<void()> rebuild,int heightLimit=0)
@@ -2606,3 +2617,405 @@
 + void keyPressed(EShortcut key) override;
  	~CStackWindow();
  };
+--- a/client/lobby/CSavingScreen.cpp
++++ b/client/lobby/CSavingScreen.cpp
+@@ -43,6 +43,7 @@
+ 	buttonStart = std::make_shared<CButton>(Point(411, 535), AnimationPath::builtin("SCNRSAV.DEF"), CGI->generaltexth->zelp[103], std::bind(&CSavingScreen::saveGame, this), EShortcut::LOBBY_SAVE_GAME);
+ 	
+ 	LOCPLINT->gamePause(true);
++ setupMobile();
+ }
+ 
+ const CMapInfo * CSavingScreen::getMapInfo()
+--- a/client/lobby/OptionsTab.h
++++ b/client/lobby/OptionsTab.h
+@@ -19,6 +19,7 @@
+ enum class PlayerStartingBonus : int8_t;
+ VCMI_LIB_NAMESPACE_END
+ 
++class CMobilePanel;
+ class CLabel;
+ class CMultiLineLabel;
+ class CFilledTexture;
+@@ -44,6 +45,7 @@
+ 	
+ 	OptionsTab();
+ 	void recreate();
++ void mobileSummary(const std::shared_ptr<CMobilePanel> & panel,int page);
+ 	void onSetPlayerClicked(const PlayerSettings & ps) const;
+ 	
+ 	enum SelType
+--- a/client/lobby/CSelectionBase.h
++++ b/client/lobby/CSelectionBase.h
+@@ -10,6 +10,8 @@
+ #pragma once
+ 
+ #include "../mainmenu/CMainMenu.h"
++#include "../windows/CMessage.h"
++class CMobilePanel;
+ 
+ VCMI_LIB_NAMESPACE_BEGIN
+ 
+@@ -57,9 +59,20 @@
+ };
+ 
+ /// The actual map selection screen which consists of the options and selection tab
+-class CSelectionBase : public CWindowObject, public ISelectionScreenInfo
+-{
+-public:
++class CSelectionBase : public CWindowObject, public ISelectionScreenInfo, public IMobileWindow
++{
++ std::shared_ptr<CMobilePanel> mobilePanel;
++ int mobilePage=0;
++ int mobileSection=0;
++ std::string mobileSignature;
++ std::string selectionSignature() const;
++public:
++ void setupMobile();
++ bool isMobileDialog() const override {return bool(mobilePanel);}
++ void requestMobileResize() override;
++ void keyPressed(EShortcut key) override;
++ void showAll(Canvas & to) override;
++ void show(Canvas & to) override;
+ 	std::shared_ptr<InfoCard> card;
+ 
+ 	std::shared_ptr<CButton> buttonSelect;
+--- a/client/lobby/CSelectionBase.cpp
++++ b/client/lobby/CSelectionBase.cpp
+@@ -10,6 +10,7 @@
+ #include "StdInc.h"
+ 
+ #include "CSelectionBase.h"
++#include "../windows/MobileWindow.h"
+ #include "CBonusSelection.h"
+ #include "CLobbyScreen.h"
+ #include "OptionsTab.h"
+@@ -600,3 +601,76 @@
+ 	background->scaleTo(Point(pos.w, pos.h));
+ 	center();
+ }
++
++std::string CSelectionBase::selectionSignature() const
++{
++ std::string result=tabSel?tabSel->curFolder+":"+std::to_string(tabSel->curItems.size())+":"+std::to_string(tabSel->selectionPos):"";
++ auto map=const_cast<CSelectionBase *>(this)->getMapInfo();
++ if(map)result+=map->fileURI;
++ if(auto start=const_cast<CSelectionBase *>(this)->getStartInfo())
++  for(auto & player:start->playerInfos)result+=player.second.name+std::to_string(player.second.castle.getNum())+std::to_string(player.second.hero.getNum());
++ return result;
++}
++void CSelectionBase::setupMobile()
++{
++ if(screenType!=ESelectionScreen::saveGame && screenType!=ESelectionScreen::loadGame)return;
++ Rect area=CMessage::mobileScreenArea();if(area.w<500 || area.h<240 || !tabSel || !buttonStart)return;
++ mobilePanel.reset();moveTo(Point(0,0));for(auto child:children)child->disable();
++ pos=Rect(area.x+(area.w-std::min(780,area.w))/2,area.y,std::min(780,area.w),area.h);
++ OBJECT_CONSTRUCTION;
++ mobilePanel=std::make_shared<CMobilePanel>(pos.dimensions(),screenType==ESelectionScreen::saveGame?mobileText("Сохранить игру","Save game"):mobileText("Загрузить игру","Load game"),screenType==ESelectionScreen::saveGame?std::vector<std::string>{mobileText("Файлы","Files"),mobileText("Сценарий","Scenario")}:std::vector<std::string>{mobileText("Файлы","Files"),mobileText("Сценарий","Scenario"),mobileText("Игроки","Players")});
++ addUsedEvents(KEYBOARD);
++ mobilePanel->onPage=[this](int page){mobileSection=page;};
++ const int rowCount=std::max(1,(pos.h-210)/48);
++ const int totalPages=std::max(1,int(tabSel->curItems.size()+rowCount-1)/rowCount);
++ mobilePage=std::clamp(mobilePage,0,totalPages-1);
++ auto invoke=[](const std::shared_ptr<CButton> & button){auto held=button;if(held && !held->isBlocked()){held->clickPressed(held->pos.center());held->clickReleased(held->pos.center());}};
++ int bottom=pos.h-104;
++ int nameWidth=pos.w-220;
++ if(screenType==ESelectionScreen::saveGame && tabSel->inputName)
++ {
++  tabSel->inputName->removeFocus();
++  auto input=mobilePanel->add<CTextInput>(0,Rect(12,bottom,nameWidth,44),FONT_MEDIUM,ETextAlignment::CENTERLEFT,false);
++  mobilePanel->painters.push_back([this,nameWidth,bottom](Canvas & to){to.drawBorder(Rect(pos.x+12,pos.y+bottom,nameWidth,44),Colors::METALLIC_GOLD);});
++  input->setText(tabSel->inputName->getText());input->setFilterFilename();
++  input->setCallback([this](const std::string & value){tabSel->inputName->setText(value);});
++ }
++ auto submit=mobilePanel->add<CMobileTownButton>(0,Rect(pos.w-200,bottom,188,44),screenType==ESelectionScreen::saveGame?mobileText("Сохранить","Save"):mobileText("Загрузить","Load"),[this,invoke](){invoke(buttonStart);} );
++ mobilePanel->refreshers.push_back([this,submit](){submit->setAvailable(buttonStart && !buttonStart->isBlocked() && (screenType!=ESelectionScreen::saveGame || (tabSel->inputName && !tabSel->inputName->getText().empty())));});
++ mobilePanel->add<CMobileTownButton>(-1,Rect(pos.w-132,0,120,36),mobileText("Закрыть","Close"),[this,invoke](){invoke(buttonBack);});
++ for(int row=0;row<rowCount;++row)
++ {
++  int index=mobilePage*rowCount+row;if(index>=tabSel->curItems.size())break;
++  auto item=tabSel->curItems[index];
++  std::string title=item->isFolder?"[ "+item->folderName+" ]":item->name;
++  if(title.empty())title=item->getNameTranslated();
++  auto button=mobilePanel->add<CMobileTownButton>(0,Rect(12,42+row*48,pos.w-24,44),title,[this,index,item](){tabSel->selectAbs(index);if(item->isFolder)mobilePage=0;setupMobile();});
++  button->setSelected(index==tabSel->selectionPos && !item->isFolder);
++ }
++ if(tabSel->curItems.empty())mobilePanel->add<CLabel>(0,pos.w/2,70,FONT_MEDIUM,ETextAlignment::CENTER,Colors::WHITE,mobileText("Нет сохранений","No saved games"));
++ auto prev=mobilePanel->add<CMobileTownButton>(0,Rect(12,bottom-50,120,44),mobileText("Назад","Previous"),[this](){--mobilePage;setupMobile();});prev->setAvailable(mobilePage>0);
++ auto next=mobilePanel->add<CMobileTownButton>(0,Rect(pos.w-132,bottom-50,120,44),mobileText("Далее","Next"),[this](){++mobilePage;setupMobile();});next->setAvailable(mobilePage+1<totalPages);
++ mobilePanel->add<CLabel>(0,pos.w/2,bottom-28,FONT_SMALL,ETextAlignment::CENTER,Colors::WHITE,std::to_string(mobilePage+1)+" / "+std::to_string(totalPages));
++ auto map=getMapInfo();
++ if(map && map->mapHeader)
++ {
++  std::string details="{"+map->getNameTranslated()+"}\n\n"+map->getDescriptionTranslated()+"\n\n"+map->mapHeader->victoryMessage.toString()+"\n\n"+map->mapHeader->defeatMessage.toString()+"\n\n"+map->date;
++  mobilePanel->add<CTextBox>(1,details,Rect(12,44,pos.w-24,pos.h-110),0,FONT_MEDIUM,ETextAlignment::TOPLEFT,Colors::WHITE);
++ }
++ if(tabOpt)tabOpt->mobileSummary(mobilePanel,2);
++ mobilePanel->select(mobileSection);mobileSignature=selectionSignature();
++ GH.windows().totalRedraw();
++}
++void CSelectionBase::requestMobileResize(){if(mobilePanel)mobilePanel->resize(this,[this](){setupMobile();});}
++void CSelectionBase::showAll(Canvas & to){if(mobilePanel)mobilePanel->showAll(to);else CWindowObject::showAll(to);}
++void CSelectionBase::show(Canvas & to)
++{
++ if(mobilePanel){if(mobileSignature!=selectionSignature())setupMobile();for(auto child:children)if(child!=mobilePanel.get())child->disable();mobilePanel->show(to);}else CWindowObject::show(to);
++}
++
++void CSelectionBase::keyPressed(EShortcut key)
++{
++ if(!mobilePanel)return;
++ auto button=key==EShortcut::GLOBAL_CANCEL?buttonBack:key==EShortcut::GLOBAL_RETURN?buttonStart:nullptr;
++ if(button && !button->isBlocked()){button->clickPressed(button->pos.center());button->clickReleased(button->pos.center());}
++}
+--- a/client/lobby/CLobbyScreen.cpp
++++ b/client/lobby/CLobbyScreen.cpp
+@@ -121,6 +121,7 @@
+ 		blackScreen = std::make_shared<GraphicalPrimitiveCanvas>(Rect(Point(0, 0), pos.dimensions()));
+ 		blackScreen->addBox(Point(0, 0), pos.dimensions(), Colors::BLACK);
+ 	}
++ setupMobile();
+ }
+ 
+ CLobbyScreen::~CLobbyScreen()
+--- a/client/lobby/OptionsTab.cpp
++++ b/client/lobby/OptionsTab.cpp
+@@ -9,6 +9,7 @@
+  */
+ #include "StdInc.h"
+ #include "OptionsTab.h"
++#include "../windows/MobileWindow.h"
+ 
+ #include "CSelectionBase.h"
+ 
+@@ -1189,3 +1190,16 @@
+ 		buttonBonusRight->enable();
+ 	}
+ }
++
++void OptionsTab::mobileSummary(const std::shared_ptr<CMobilePanel> & panel,int page)
++{
++ std::string text;
++ if(SEL && SEL->getStartInfo())for(auto & [color,player]:SEL->getStartInfo()->playerInfos)
++ {
++  CPlayerSettingsHelper town(player,TOWN),hero(player,HERO),bonus(player,BONUS);
++  text+="{"+CGI->generaltexth->capColors[color.getNum()]+"}: "+player.name+"\n";
++  text+=player.isControlledByHuman()?mobileText("Человек","Human"):mobileText("Компьютер","Computer");
++  text+="\n"+mobileText("Город: ","Town: ")+town.getName()+"   "+mobileText("Герой: ","Hero: ")+hero.getName()+"\n"+mobileText("Бонус: ","Bonus: ")+bonus.getName()+"\n\n";
++ }
++ panel->add<CTextBox>(page,text,Rect(12,44,panel->pos.w-24,panel->pos.h-110),0,FONT_MEDIUM,ETextAlignment::TOPLEFT,Colors::WHITE);
++}
+--- a/client/lobby/CScenarioInfoScreen.h
++++ b/client/lobby/CScenarioInfoScreen.h
+@@ -12,9 +12,16 @@
+ #include "CSelectionBase.h"
+ 
+ /// Scenario information screen shown during the game
+-class CScenarioInfoScreen : public WindowBase, public ISelectionScreenInfo
++class CScenarioInfoScreen : public WindowBase, public ISelectionScreenInfo, public IMobileWindow
+ {
++ std::shared_ptr<CMobilePanel> mobilePanel;
++ void setupMobile();
+ public:
++ bool isMobileDialog() const override {return bool(mobilePanel);}
++ void requestMobileResize() override;
++ void keyPressed(EShortcut key) override;
++ void showAll(Canvas & to) override;
++ void show(Canvas & to) override;
+ 	std::shared_ptr<CButton> buttonBack;
+ 	std::shared_ptr<InfoCard> card;
+ 	std::shared_ptr<OptionsTab> opt;
+--- a/client/lobby/CScenarioInfoScreen.cpp
++++ b/client/lobby/CScenarioInfoScreen.cpp
+@@ -10,6 +10,7 @@
+ #include "StdInc.h"
+ 
+ #include "CScenarioInfoScreen.h"
++#include "../windows/MobileWindow.h"
+ #include "OptionsTab.h"
+ 
+ #include "../CGameInfo.h"
+@@ -46,6 +47,7 @@
+ 
+ 	card->iconDifficulty->setSelected(getCurrentDifficulty());
+ 	buttonBack = std::make_shared<CButton>(Point(584, 535), AnimationPath::builtin("SCNRBACK.DEF"), CGI->generaltexth->zelp[105], [=](){ close();}, EShortcut::GLOBAL_CANCEL);
++ setupMobile();
+ }
+ 
+ CScenarioInfoScreen::~CScenarioInfoScreen()
+@@ -63,3 +65,23 @@
+ {
+ 	return localSi;
+ }
++
++void CScenarioInfoScreen::setupMobile()
++{
++ Rect r=prepareMobileWindow(*this,mobilePanel);if(!r.w)return;
++ OBJECT_CONSTRUCTION;
++ mobilePanel=std::make_shared<CMobilePanel>(r.dimensions(),mobileText("Сведения о партии","Scenario information"),std::vector<std::string>{mobileText("Сценарий","Scenario"),mobileText("Игроки","Players"),mobileText("Правила","Rules")});
++ std::string details="{"+localMi->getNameTranslated()+"}\n\n"+localMi->getDescriptionTranslated();
++ mobilePanel->add<CTextBox>(0,details,Rect(12,44,pos.w-24,pos.h-110),0,FONT_MEDIUM,ETextAlignment::TOPLEFT,Colors::WHITE);
++ addUsedEvents(KEYBOARD);
++ opt->mobileSummary(mobilePanel,1);
++ auto header=localMi->mapHeader.get();
++ std::string rules=mobileText("Победа: ","Victory: ")+header->victoryMessage.toString()+"\n\n"+mobileText("Поражение: ","Defeat: ")+header->defeatMessage.toString()+"\n\n"+mobileText("Размер карты: ","Map size: ")+std::to_string(header->width)+" × "+std::to_string(header->height)+"\n\n"+mobileText("Сложность игры: ","Game difficulty: ")+CGI->generaltexth->arraytxt[142+getCurrentDifficulty()];
++ mobilePanel->add<CTextBox>(2,rules,Rect(12,44,pos.w-24,pos.h-110),0,FONT_MEDIUM,ETextAlignment::TOPLEFT,Colors::WHITE);
++ GH.windows().totalRedraw();
++}
++void CScenarioInfoScreen::requestMobileResize(){if(mobilePanel)mobilePanel->resize(this,[this](){setupMobile();});}
++void CScenarioInfoScreen::showAll(Canvas & to){if(mobilePanel)mobilePanel->showAll(to);else WindowBase::showAll(to);}
++void CScenarioInfoScreen::show(Canvas & to){if(mobilePanel)mobilePanel->show(to);else WindowBase::show(to);}
++
++void CScenarioInfoScreen::keyPressed(EShortcut key){if(mobilePanel && (key==EShortcut::GLOBAL_CANCEL || key==EShortcut::GLOBAL_RETURN))close();}
+--- a/client/lobby/SelectionTab.cpp
++++ b/client/lobby/SelectionTab.cpp
+@@ -10,6 +10,7 @@
+ #include "StdInc.h"
+ 
+ #include "SelectionTab.h"
++#include "../windows/CMessage.h"
+ #include "CSelectionBase.h"
+ #include "CLobbyScreen.h"
+ 
+@@ -667,7 +668,7 @@
+ 
+ 	rememberCurrentSelection();
+ 
+-	if(inputName && inputName->isActive())
++	if(inputName && (inputName->isActive() || CMessage::isMobileSession()))
+ 	{
+ 		auto filename = *CResourceHandler::get()->getResourceName(ResourcePath(curItems[py]->fileURI, EResType::SAVEGAME));
+ 		inputName->setText(filename.stem().string());
+--- a/client/windows/CSpellWindow.h
++++ b/client/windows/CSpellWindow.h
+@@ -10,6 +10,8 @@
+ #pragma once
+ 
+ #include "CWindowObject.h"
++#include "CMessage.h"
++class CMobilePanel;
+ #include "../widgets/IVideoHolder.h"
+ 
+ VCMI_LIB_NAMESPACE_BEGIN
+@@ -32,8 +34,12 @@
+ class VideoWidgetOnce;
+ 
+ /// The spell window
+-class CSpellWindow : public CWindowObject, public IVideoHolder
++class CSpellWindow : public CWindowObject, public IVideoHolder, public IMobileWindow
+ {
++	std::shared_ptr<CMobilePanel> mobilePanel;
++ int mobilePage=0;
++ int mobileCapacity=4;
++ void setupMobile();
+ 	class SpellArea : public CIntObject
+ 	{
+ 		const CSpell * mySpell;
+@@ -125,6 +131,9 @@
+ public:
+ 	CSpellWindow(const CGHeroInstance * _myHero, CPlayerInterface * _myInt, bool openOnBattleSpells = true, const std::function<void(SpellID)> & onSpellSelect = nullptr);
+ 	~CSpellWindow();
++ bool isMobileDialog() const override {return bool(mobilePanel);}
++ void requestMobileResize() override;
++ void showAll(Canvas & to) override;
+ 
+ 	void fexitb();
+ 	void fadvSpellsb();
+--- a/client/windows/CSpellWindow.cpp
++++ b/client/windows/CSpellWindow.cpp
+@@ -9,6 +9,7 @@
+  */
+ #include "StdInc.h"
+ #include "CSpellWindow.h"
++#include "MobileWindow.h"
+ 
+ #include "../../lib/ScopeGuard.h"
+ 
+@@ -213,6 +214,7 @@
+ 	setCurrentPage(cp);
+ 	computeSpellsPerArea();
+ 	addUsedEvents(KEYBOARD);
++ setupMobile();
+ }
+ 
+ CSpellWindow::~CSpellWindow()
+@@ -395,6 +397,7 @@
+ 
+ void CSpellWindow::show(Canvas & to)
+ {
++ if(mobilePanel){mobilePanel->show(to);return;}
+ 	if(video)
+ 		video->show(to);
+ 	statusBar->show(to);
+@@ -515,6 +518,17 @@
+ 
+ void CSpellWindow::keyPressed(EShortcut key)
+ {
++ if(mobilePanel)
++ {
++  if(key==EShortcut::GLOBAL_CANCEL || key==EShortcut::GLOBAL_RETURN){fexitb();return;}
++  if(key==EShortcut::MOVE_LEFT)--mobilePage;
++  else if(key==EShortcut::MOVE_RIGHT)++mobilePage;
++  else if(key==EShortcut::SPELLBOOK_TAB_COMBAT){battleSpellsOnly=true;mobilePage=0;}
++  else if(key==EShortcut::SPELLBOOK_TAB_ADVENTURE){battleSpellsOnly=false;mobilePage=0;}
++  else return;
++  setupMobile();return;
++ }
++
+ 	switch(key)
+ 	{
+ 		case EShortcut::GLOBAL_RETURN:
+@@ -572,6 +586,13 @@
+ 	level = std::make_shared<CLabel>(39, 82, FONT_TINY, ETextAlignment::CENTER);
+ 	cost = std::make_shared<CLabel>(39, 94, FONT_TINY, ETextAlignment::CENTER);
+ 
++ if(owner->mobilePanel)
++ {
++  image->moveTo(pos.topLeft()+Point(8,8));
++  name=std::make_shared<CLabel>(88,18,FONT_SMALL,ETextAlignment::CENTERLEFT,Colors::YELLOW,"",pos.w-100);
++  level=std::make_shared<CLabel>(88,42,FONT_SMALL,ETextAlignment::CENTERLEFT,Colors::WHITE,"",pos.w-100);
++  cost=std::make_shared<CLabel>(88,64,FONT_SMALL,ETextAlignment::CENTERLEFT,Colors::WHITE,"",pos.w-100);
++ }
+ 	for(auto l : {name, level, cost})
+ 		l->setAutoRedraw(false);
+ }
+@@ -766,3 +787,40 @@
+ 		cost->setText(costfmt.str());
+ 	}
+ }
++
++void CSpellWindow::setupMobile()
++{
++ if(searchBox)searchBox->removeFocus();
++ const Rect r=prepareMobileWindow(*this,mobilePanel,460);if(!r.w)return;
++ OBJECT_CONSTRUCTION;
++ mobilePanel=std::make_shared<CMobilePanel>(r.dimensions(),mobileText("Книга заклинаний","Spellbook"),std::vector<std::string>{});
++ background->disable();
++ mobileCapacity=2*std::max(1,(pos.h-160)/96);
++ mobileCapacity=std::min(6,mobileCapacity);
++ std::vector<const CSpell *> spells;
++ for(auto spell:mySpells)
++  if(spell->isCombat()==battleSpellsOnly && (selectedTab==4 || spell->school.at(SpellSchool(selectedTab))))spells.push_back(spell);
++ int pages=std::max(1,int(spells.size()+mobileCapacity-1)/mobileCapacity);
++ mobilePage=std::clamp(mobilePage,0,pages-1);
++ int bw=(pos.w-40)/3;
++ mobilePanel->add<CMobileTownButton>(0,Rect(12,38,bw,44),mobileText("Походные","Adventure"),[this](){battleSpellsOnly=false;mobilePage=0;setupMobile();})->setSelected(!battleSpellsOnly);
++ mobilePanel->add<CMobileTownButton>(0,Rect(20+bw,38,bw,44),mobileText("Боевые","Combat"),[this](){battleSpellsOnly=true;mobilePage=0;setupMobile();})->setSelected(battleSpellsOnly);
++ const std::array<std::string,5> schools={mobileText("Воздух","Air"),mobileText("Огонь","Fire"),mobileText("Вода","Water"),mobileText("Земля","Earth"),mobileText("Все школы","All schools")};
++ mobilePanel->add<CMobileTownButton>(0,Rect(28+2*bw,38,bw,44),schools[selectedTab],[this](){selectedTab=(selectedTab+1)%5;mobilePage=0;setupMobile();});
++ int cw=(pos.w-36)/2;
++ for(auto & area:spellAreas)if(area)area->disable();
++ for(int i=0;i<mobileCapacity;++i)
++ {
++  int index=mobilePage*mobileCapacity+i;
++  if(index>=spells.size())break;
++  auto area=mobilePanel->add<SpellArea>(0,Rect(pos.x+12+(i%2)*(cw+12),pos.y+90+(i/2)*96,cw,90),this);
++  area->setSpell(spells[index]);
++ }
++ if(spells.empty())mobilePanel->add<CLabel>(0,pos.w/2,120,FONT_MEDIUM,ETextAlignment::CENTER,Colors::WHITE,mobileText("Нет доступных заклинаний","No available spells"));
++ auto prev=mobilePanel->add<CMobileTownButton>(0,Rect(12,pos.h-52,110,44),mobileText("Назад","Previous"),[this](){--mobilePage;setupMobile();});prev->setAvailable(mobilePage>0);
++ auto next=mobilePanel->add<CMobileTownButton>(0,Rect(pos.w-122,pos.h-52,110,44),mobileText("Далее","Next"),[this](){++mobilePage;setupMobile();});next->setAvailable(mobilePage+1<pages);
++ mobilePanel->add<CLabel>(0,pos.w/2,pos.h-30,FONT_SMALL,ETextAlignment::CENTER,Colors::WHITE,std::to_string(mobilePage+1)+" / "+std::to_string(pages)+"   "+mobileText("Мана: ","Mana: ")+std::to_string(myHero->mana));
++ GH.windows().totalRedraw();
++}
++void CSpellWindow::requestMobileResize(){if(mobilePanel)mobilePanel->resize(this,[this](){setupMobile();},460);}
++void CSpellWindow::showAll(Canvas & to){if(mobilePanel)mobilePanel->showAll(to);else CWindowObject::showAll(to);}
