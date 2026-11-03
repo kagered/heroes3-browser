@@ -115,3 +115,8 @@ assert.equal(keyboard.document.activeElement,keyboardInput,'repositioning the br
 console.log('PASS: iPad keyboard resize and dialog-layer changes retain filename focus');
 
 keyboardInput.blur();assert.equal(keyboardModule.mobileTextEditing,false,"leaving the name field restores normal game layout");
+
+const reader=setup({coarse:true});reader.ui.attach({},reader.ui.profile());
+const whole='Начало\n'+('Длинное сообщение. '.repeat(200))+'КОНЕЦ';reader.ui.showFullText(whole);
+const full=reader.elements.find(e=>e.className==='mobile-full-text');assert.equal(full.children[0].textContent,whole);assert.equal(full.hidden,false);full.children[1].onclick();assert.equal(full.hidden,true);
+console.log('PASS: full-text reader retains the entire long message and dismisses without game action');

@@ -148,7 +148,8 @@ function homeDestination() {
   return '/index.html';
 }
 
-function returnToGameMenu() {
+function returnToGameMenu(target = 'main') {
+  try { if(target==='load')sessionStorage.setItem('heroes3.mobileMenuTarget','load');else sessionStorage.removeItem('heroes3.mobileMenuTarget'); } catch {}
   try { sessionStorage.setItem('heroes3.retryLaunch','1'); } catch {}
   // Defer teardown until the engine confirmation callback has returned.
   setTimeout(()=>{void returnHome();},0);

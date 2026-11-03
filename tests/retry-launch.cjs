@@ -6,7 +6,7 @@ const start=app.indexOf('  let resume=false;');const end=app.indexOf('\n  try {\
 for(const ready of [true,false]){let calls=0;vm.runInNewContext("if (resume && ready) { $('mode').value='solo';void start(false); }",{resume:true,ready,$:()=>({}),start(){calls++}});assert.equal(calls,ready?1:0)}
 console.log('PASS: desktop/iPad retry destinations, flag written before navigation, one-shot consumption and preflight guard');
 
-const menuStart=app.indexOf('function returnToGameMenu() {');const menuEnd=app.indexOf('async function returnHome()',menuStart);
+const menuStart=app.indexOf('function returnToGameMenu(');const menuEnd=app.indexOf('async function returnHome()',menuStart);
 let scheduled,returned=0;flag=undefined;
 vm.runInNewContext(app.slice(menuStart,menuEnd)+';returnToGameMenu();',{sessionStorage:{setItem(k,v){assert.equal(k,'heroes3.retryLaunch');flag=v}},setTimeout(callback){scheduled=callback},returnHome(){assert.equal(flag,'1');returned++}});
 assert.equal(returned,0,'engine teardown must wait for the confirmation callback to return');assert.equal(typeof scheduled,'function');scheduled();assert.equal(returned,1);

@@ -169,3 +169,11 @@ Mobile battle clicks resolve the current pointer hex and update the legal action
 Text-box resize updates the multiline label's actual visible rectangle. Overflowing mobile information dialogs retain all text and add 44-pixel up/down controls beside the existing scroll bar. The same layout serves both languages.
 
 The browser save-name field lives outside the rotating game container. While focused it stays upright at the visible viewport's top with a Done control, and keyboard resize does not resize the game. An explicit engine text-editing flag prevents innerHeight changes from shrinking native panels. Blur restores normal geometry. Tests cover focus, keyboard-sized viewport offsets, unchanged game viewport and ending text entry. Physical checks remain required for adjacent attacks, results, long-text scrolling and iPad keyboard visibility. Browser use is unavailable in this session.
+
+### Result, recruitment and load-transition follow-up
+
+Mobile battle results use one continuous original-texture interior while retaining the original outer frame and result/casualty controls, instead of a button-shaped patch over the video rectangle. External recruitment closes through a queued weak-window callback after observed stock reduction, rather than immediately claiming success.
+
+Mobile information text is reconstructed from the original raw message. Long single-confirmation messages also expose Full text, a separate browser reader with native touch scrolling; closing the reader does not accept the game dialog. Its full-message preservation is tested.
+
+Confirming in-game Load uses the tracked browser teardown/relaunch path instead of blocking in endGameplay. A one-shot session target opens the Load title-menu tab after relaunch, preserving the original save-mode choices. Actual save loading stays under the engine's normal validation. Regression tests cover the target and deferred teardown. Physical iPad verification remains required; no interactive browser access is available in this session.

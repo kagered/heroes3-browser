@@ -144,11 +144,22 @@
     saveNameRect=[x,y,width,height];positionSaveNameInput();
     if(document.activeElement!==saveNameInput && saveNameInput.value!==value)saveNameInput.value=value;
   }
+  let fullTextReader;
+  function showFullText(value) {
+    if(!fullTextReader) {
+      fullTextReader=document.createElement('section');fullTextReader.className='mobile-full-text';fullTextReader.setAttribute('role','dialog');fullTextReader.setAttribute('aria-modal','true');
+      const content=document.createElement('div');content.className='mobile-full-text-content';
+      const close=document.createElement('button');close.type='button';close.textContent=text('Закрыть','Close');close.onclick=()=>{fullTextReader.hidden=true;};
+      fullTextReader.append(content,close);document.body.append(fullTextReader);
+    }
+    fullTextReader.children[0].textContent=value.replace(/\{(?:[^{}|]*\|)?/g,'').replace(/\}/g,'');
+    fullTextReader.children[0].scrollTop=0;fullTextReader.hidden=false;
+  }
   function displayButton() {
     const b=document.createElement('button');b.type='button';b.textContent=text('Экран ⛶','Screen ⛶');b.onclick=()=>{if(isIPad() && !navigator.standalone && !document.fullscreenElement)screenHelp.hidden=false;else void fullscreen();};return b;
   }
   window.HeroesMobileAdventure = {
-    get active(){return active;},get session(){return session;},send,profile,remapPoint,notify,saveNameField,
+    get active(){return active;},get session(){return session;},send,profile,remapPoint,notify,saveNameField,showFullText,
     prepareDisplay(){if(touchDevice && !isIPad() && profile())void fullscreen(false);},
     attach(options,viewport) {
       module=options;session=true;

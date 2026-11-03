@@ -316,10 +316,11 @@
  
 --- a/client/windows/CMessage.cpp
 +++ b/client/windows/CMessage.cpp
-@@ -10,6 +10,13 @@
+@@ -10,6 +10,14 @@
  
  #include "StdInc.h"
  #include "CMessage.h"
++#include "../../lib/CConfigHandler.h"
 +#ifdef VCMI_HTML5_BUILD
 +#include <emscripten.h>
 +#endif
@@ -330,7 +331,7 @@
  
  #include "../gui/CGuiHandler.h"
  #include "../render/CAnimation.h"
-@@ -212,8 +219,101 @@
+@@ -212,8 +220,113 @@
  	return 0;
  }
  
@@ -400,7 +401,10 @@
 +		int textWidth = width-32-(sideBySide ? ret->components->pos.w+20 : 0);
 +		int reserved = 32 + (buttonHeight ? buttonHeight+12 : 0) + (!sideBySide && componentHeight ? componentHeight+12 : 0);
 +		int textBudget = std::max(32,mobileArea.h-reserved);
-+		ret->text->resize(Point(textWidth,textBudget));
++  {
++   ObjectConstruction scope(ret);
++   ret->text=std::make_shared<CTextBox>(text,Rect(0,0,textWidth,textBudget),0,FONT_MEDIUM,ETextAlignment::TOPLEFT,Colors::WHITE);
++  }
 +  ret->mobileTextScroll.clear();
 +  if(ret->text->slider)
 +  {
@@ -424,6 +428,15 @@
 +			button->moveTo(Point(x,height-16-buttonHeight));
 +			x += button->pos.w+24;
 +		}
++  if(buttonHeight && ret->buttons.size()==1 && text.size()>160)
++  {
++   ObjectConstruction scope(ret);
++   ret->mobileTextScroll.push_back(std::make_shared<CMobileTownButton>(Rect(16,height-16-buttonHeight,110,44),settings["general"]["language"].String()=="russian"?"Весь текст":"Full text",[text](){
++#ifdef VCMI_HTML5_BUILD
++    MAIN_THREAD_EM_ASM({if(window.HeroesMobileAdventure && window.HeroesMobileAdventure.showFullText)window.HeroesMobileAdventure.showFullText(UTF8ToString($0));},text.c_str());
++#endif
++   }));
++  }
 +		ret->backgroundTexture->pos=ret->pos;
 +		ret->moveTo(Point(mobileArea.x+(mobileArea.w-width)/2,mobileArea.y+(mobileArea.h-height)/2));
 +		return;
@@ -739,13 +752,15 @@
  }
  
  void CRecruitmentWindow::availableCreaturesChanged()
-@@ -268,10 +359,14 @@
+@@ -268,10 +359,16 @@
  
  	const int creatureWidth = 102;
  
 + if(mobileLayout && pendingRecruitAmount>0)
 + {
-+  for(const auto & card:cards)if(card->creature->getId()==pendingRecruitCreature && card->amount<pendingRecruitStock){notifyRecruit(mobileText("Нанято: ","Recruited: ")+card->creature->getNamePluralTranslated()+" × "+std::to_string(pendingRecruitStock-card->amount),true);pendingRecruitAmount=0;break;}
++  for(const auto & card:cards)if(card->creature->getId()==pendingRecruitCreature && card->amount<pendingRecruitStock){notifyRecruit(mobileText("Нанято: ","Recruited: ")+card->creature->getNamePluralTranslated()+" × "+std::to_string(pendingRecruitStock-card->amount),true);pendingRecruitAmount=0;
++   if(level<0)for(auto window:GH.windows().findWindows<CRecruitmentWindow>())if(window.get()==this){std::weak_ptr<CRecruitmentWindow> weak=window;GH.dispatchMainThread([weak](){if(auto live=weak.lock();live && GH.windows().isTopWindow(live))live->close();});break;}
++   break;}
 + }
  	//normal distance between cards - 18px
  	int requiredSpace = 18;
@@ -755,7 +770,7 @@
  
  	if (cards.size() > 1) // avoid division by zero
  		availableSpace /= (int)cards.size() - 1;
-@@ -291,8 +386,9 @@
+@@ -291,8 +388,9 @@
  		curx += totalCreatureWidth;
  	}
  
@@ -766,7 +781,7 @@
  
  	if(slider->getValue() == slider->getAmount())
  		slider->scrollToMax();
-@@ -306,6 +402,7 @@
+@@ -306,6 +404,7 @@
  		return;
  
  	buyButton->block(!to || !LOCPLINT->makingTurn);
@@ -774,7 +789,7 @@
  	availableValue->setText(std::to_string(selected->amount - to));
  	toRecruitValue->setText(std::to_string(to));
  
-@@ -313,7 +410,7 @@
+@@ -313,7 +412,7 @@
  }
  
  CSplitWindow::CSplitWindow(const CCreature * creature, std::function<void(int, int)> callback_, int leftMin_, int rightMin_, int leftAmount_, int rightAmount_)
@@ -783,7 +798,7 @@
  	callback(callback_),
  	leftAmount(leftAmount_),
  	rightAmount(rightAmount_),
-@@ -352,6 +449,33 @@
+@@ -352,6 +451,33 @@
  	std::string titleStr = CGI->generaltexth->allTexts[256];
  	boost::algorithm::replace_first(titleStr,"%s", creature->getNamePluralTranslated());
  	title = std::make_shared<CLabel>(150, 34, FONT_BIG, ETextAlignment::CENTER, Colors::YELLOW, titleStr);
@@ -817,7 +832,7 @@
  }
  
  void CSplitWindow::setAmountText(std::string text, bool left)
-@@ -399,12 +523,42 @@
+@@ -399,12 +525,42 @@
  }
  
  CLevelWindow::CLevelWindow(const CGHeroInstance * hero, PrimarySkill pskill, std::vector<SecondarySkill> & skills, std::function<void(ui32)> callback)
@@ -861,7 +876,7 @@
  
  	if(!skills.empty())
  	{
-@@ -438,6 +592,12 @@
+@@ -438,6 +594,12 @@
  	skillIcon = std::make_shared<CAnimImage>(AnimationPath::builtin("PSKIL42"), static_cast<int>(pskill), 0, 174, 190);
  
  	skillValue = std::make_shared<CLabel>(192, 253, FONT_MEDIUM, ETextAlignment::CENTER, Colors::WHITE, CGI->generaltexth->primarySkillNames[static_cast<int>(pskill)] + " +1");
@@ -874,7 +889,7 @@
  }
  
  void CLevelWindow::close()
-@@ -532,6 +692,7 @@
+@@ -532,6 +694,7 @@
  		videoPlayer = std::make_shared<VideoWidget>(Point(70, 56), VideoPath::builtin("TAVERN.BIK"), false);
  
  	addInvite();
@@ -882,7 +897,7 @@
  }
  
  void CTavernWindow::addInvite()
-@@ -1464,6 +1625,74 @@
+@@ -1464,6 +1627,74 @@
  
  		counter++;
  	}
@@ -957,7 +972,7 @@
  }
  
  CObjectListWindow::CItem::CItem(CObjectListWindow * _parent, size_t _id, std::string _text)
-@@ -1739,3 +1968,26 @@
+@@ -1739,3 +1970,26 @@
  {
  	exit(true);
  }
@@ -3138,13 +3153,21 @@
  
  #include "BattleInterface.h"
  #include "BattleActionsController.h"
-@@ -841,7 +842,9 @@
+@@ -742,6 +743,7 @@
+ 	background = std::make_shared<CPicture>(ImagePath::builtin("CPRESULT"));
+ 	background->setPlayerColor(owner.playerID);
+ 	pos = center(background->pos);
++ if(CMessage::isMobileSession())mobileVideoFallback=std::make_shared<CFilledTexture>(ImagePath::builtin("DiBoxBck"),Rect(14,14,pos.w-28,pos.h-28));
+ 
+ 	exit = std::make_shared<CButton>(Point(384, 505), AnimationPath::builtin("iok6432.def"), std::make_pair("", ""), [&](){ bExitf();}, EShortcut::GLOBAL_ACCEPT);
+ 	exit->setBorderColor(Colors::METALLIC_GOLD);
+@@ -841,7 +843,9 @@
  	auto resources = getResources(br);
  
  	description = std::make_shared<CTextBox>(resources.resultText.toString(), Rect(69, 203, 330, 68), 0, FONT_SMALL, ETextAlignment::CENTER, Colors::WHITE);
 -	videoPlayer = std::make_shared<VideoWidget>(Point(107, 70), resources.prologueVideo, resources.loopedVideo, false);
 +	if(CMessage::isMobileSession())
-+  mobileVideoFallback=std::make_shared<CMobileTownButton>(Rect(107,70,250,130),mobileText("Итоги сражения","Battle result"),[](){});
++  labels.push_back(std::make_shared<CLabel>(232,174,FONT_BIG,ETextAlignment::CENTER,Colors::YELLOW,mobileText("Итоги сражения","Battle result")));
 + else videoPlayer = std::make_shared<VideoWidget>(Point(107, 70), resources.prologueVideo, resources.loopedVideo, false);
  
  	CCS->musich->playMusic(resources.musicName, false, true);
@@ -3238,3 +3261,55 @@
  	slider.reset();
  	setText(label->getText()); // force refresh
  }
+--- a/client/CPlayerInterface.cpp
++++ b/client/CPlayerInterface.cpp
+@@ -9,6 +9,9 @@
+  */
+ #include "StdInc.h"
+ #include "CPlayerInterface.h"
++#ifdef VCMI_HTML5_BUILD
++#include <emscripten.h>
++#endif
+ 
+ #include <vcmi/Artifact.h>
+ 
+@@ -1818,6 +1821,9 @@
+ 		CGI->generaltexth->allTexts[68],
+ 		[]()
+ 		{
++#ifdef VCMI_HTML5_BUILD
++   if(MAIN_THREAD_EM_ASM_INT({if(Module.mobileAdventureUI && Module.mobileReturnToMenu){Module.mobileReturnToMenu('load');return 1;}return 0;}))return;
++#endif
+ 			CSH->endGameplay();
+ 			CMM->menu->switchToTab("load");
+ 		},
+--- a/client/mainmenu/CMainMenu.cpp
++++ b/client/mainmenu/CMainMenu.cpp
+@@ -9,6 +9,9 @@
+  */
+ #include "StdInc.h"
+ #include "CMainMenu.h"
++#ifdef VCMI_HTML5_BUILD
++#include <emscripten.h>
++#endif
+ 
+ #include "CCampaignScreen.h"
+ #include "CreditsScreen.h"
+@@ -325,6 +328,7 @@
+ 	pos.h = GH.screenDimensions().y;
+ 
+ 	menu = std::make_shared<CMenuScreen>(CMainMenuConfig::get().getConfig()["window"]);
++
+ 	OBJECT_CONSTRUCTION;
+ 	backgroundAroundMenu = std::make_shared<CFilledTexture>(ImagePath::builtin("DIBOXBCK"), pos);
+ }
+@@ -396,6 +400,9 @@
+ 		menu->switchToTab(menu->getActiveTab());
+ 	}
+ 
++#ifdef VCMI_HTML5_BUILD
++ if(MAIN_THREAD_EM_ASM_INT({try{const load=Module.mobileAdventureUI && sessionStorage.getItem('heroes3.mobileMenuTarget')==='load';if(load)sessionStorage.removeItem('heroes3.mobileMenuTarget');return load?1:0;}catch{return 0;}}))menu->switchToTab("load");
++#endif
+ 	// Handles mouse and key input
+ 	GH.handleEvents();
+ 	GH.windows().simpleRedraw();

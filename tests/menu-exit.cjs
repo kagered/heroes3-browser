@@ -18,3 +18,7 @@ native.context.engine.FS.open('/Sprites/browser-exit.bmp');assert.equal(native.e
 const classic=fixture(false);
 assert.equal(JSON.parse(classic.files.get('/config/widgets/settings/otherOptionsTab.json')).items[0].name,'browserExitBridge');
 assert.equal(JSON.parse(classic.files.get('/config/widgets/settings/settingsMainContainer.json')).items[0].type,'toggleGroup');
+
+const returnCode=app.slice(app.indexOf('function returnToGameMenu('),app.indexOf('\nasync function returnHome',app.indexOf('function returnToGameMenu(')));
+const store=new Map(),deferred=[];let returned=0;const menuContext={sessionStorage:{setItem:(k,v)=>store.set(k,v),removeItem:k=>store.delete(k)},setTimeout:fn=>deferred.push(fn),returnHome:()=>returned++};
+vm.createContext(menuContext);vm.runInContext(returnCode,menuContext);menuContext.returnToGameMenu('load');assert.equal(returned,0);assert.equal(store.get('heroes3.mobileMenuTarget'),'load');assert.equal(store.get('heroes3.retryLaunch'),'1');deferred.shift()();assert.equal(returned,1);menuContext.returnToGameMenu();assert.equal(store.has('heroes3.mobileMenuTarget'),false);
