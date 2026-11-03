@@ -177,3 +177,10 @@ Mobile battle results use one continuous original-texture interior while retaini
 Mobile information text is reconstructed from the original raw message. Long single-confirmation messages also expose Full text, a separate browser reader with native touch scrolling; closing the reader does not accept the game dialog. Its full-message preservation is tested.
 
 Confirming in-game Load uses the tracked browser teardown/relaunch path instead of blocking in endGameplay. A one-shot session target opens the Load title-menu tab after relaunch, preserving the original save-mode choices. Actual save loading stays under the engine's normal validation. Regression tests cover the target and deferred teardown. Physical iPad verification remains required; no interactive browser access is available in this session.
+
+
+### Full-text eligibility and tutorial-data diagnosis
+
+Full text is offered only when the laid-out mobile text box actually overflows and owns a scroll bar, rather than from raw UTF-8 byte length. Short fitting notices have only their original confirmation control.
+
+The supplied Russian Tutorial.tut stores the Inferno/Archangels event message as exactly 300 Windows-1251 bytes, ending mid-sentence. The English map contains the complete counterpart. This is a source-map content defect, also embedded into existing saves, not hidden content in the reader. Game maps and save contents are not rewritten by this UI fix.

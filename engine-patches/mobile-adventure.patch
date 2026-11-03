@@ -428,7 +428,7 @@
 +			button->moveTo(Point(x,height-16-buttonHeight));
 +			x += button->pos.w+24;
 +		}
-+  if(buttonHeight && ret->buttons.size()==1 && text.size()>160)
++  if(buttonHeight && ret->buttons.size()==1 && ret->text->slider)
 +  {
 +   ObjectConstruction scope(ret);
 +   ret->mobileTextScroll.push_back(std::make_shared<CMobileTownButton>(Rect(16,height-16-buttonHeight,110,44),settings["general"]["language"].String()=="russian"?"Весь текст":"Full text",[text](){
