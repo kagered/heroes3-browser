@@ -1344,7 +1344,7 @@
  
  	redraw();
  }
-@@ -352,3 +356,125 @@
+@@ -352,3 +356,128 @@
  {
  	return army == curHero;
  }
@@ -1398,7 +1398,10 @@
 + for(auto & split:garr->splitButtons)split->disable();
 + int bw=(pos.w-40)/3;
 + mobilePanel->add<CMobileTownButton>(2,Rect(12,132,bw,44),mobileText("Разделить","Split"),[this](){if(!garr->splitSelectedMobile())LOCPLINT->showInfoDialog(mobileText("Выбери свой отряд из двух или более существ. Для разделения нужен свободный слот в этой армии.","Select your stack of at least two creatures. Splitting requires an empty slot in the same army."));});
-+ mobilePanel->add<CMobileTownButton>(2,Rect(20+bw,132,bw,44),mobileText("Сменить строй","Formation"),[this](){auto f=curHero->formation==EArmyFormation::TIGHT?EArmyFormation::LOOSE:EArmyFormation::TIGHT;LOCPLINT->cb->setFormation(curHero,f);});
++ auto formation=mobilePanel->add<CMobileTownButton>(2,Rect(20+bw,132,bw,44),"",[this](){auto f=curHero->formation==EArmyFormation::TIGHT?EArmyFormation::LOOSE:EArmyFormation::TIGHT;LOCPLINT->cb->setFormation(curHero,f);});
++ auto refreshFormation=[this,formation,last=-1]() mutable {int tight=curHero->formation==EArmyFormation::TIGHT;if(last==tight)return;last=tight;formation->setText(tight?mobileText("Строй: плотный","Formation: tight"):mobileText("Строй: свободный","Formation: loose"));formation->setSelected(tight);};
++ refreshFormation();mobilePanel->refreshers.push_back(refreshFormation);
++ if(pos.h>=288)mobilePanel->add<CTextBox>(2,mobileText("Строй задаёт начальную расстановку отрядов в бою: рядом друг с другом или с промежутками.","Formation sets the starting positions in battle: troops grouped together or spread apart."),Rect(12,188,pos.w-24,pos.h-248),0,FONT_MEDIUM,ETextAlignment::TOPLEFT);
 + auto tactics=mobilePanel->add<CMobileTownButton>(2,Rect(28+2*bw,132,bw,44),mobileText("Тактика","Tactics"),[this](){if(!tacticsButton->isBlocked())curHero->tacticFormationEnabled=!curHero->tacticFormationEnabled;},!tacticsButton->isBlocked());
 + // Move the actual artifact places, never copy their items or callbacks.
 + const std::array<std::string,19> slots={mobileText("Голова","Head"),mobileText("Плечи","Shoulders"),mobileText("Шея","Neck"),mobileText("Правая рука","Right hand"),mobileText("Левая рука","Left hand"),mobileText("Доспех","Torso"),mobileText("Кольцо","Ring"),mobileText("Кольцо","Ring"),mobileText("Обувь","Feet"),mobileText("Предмет","Misc"),mobileText("Предмет","Misc"),mobileText("Предмет","Misc"),mobileText("Предмет","Misc"),mobileText("Баллиста","Ballista"),mobileText("Повозка","Ammo cart"),mobileText("Палатка","First aid"),mobileText("Катапульта","Catapult"),mobileText("Книга","Spellbook"),mobileText("Предмет","Misc")};
@@ -2176,7 +2179,38 @@
 +}
 --- a/client/widgets/CGarrisonInt.cpp
 +++ b/client/widgets/CGarrisonInt.cpp
-@@ -587,6 +587,17 @@
+@@ -17,6 +17,7 @@
+ #include "../gui/CGuiHandler.h"
+ #include "../gui/WindowHandler.h"
+ #include "../render/IImage.h"
++#include "../render/Canvas.h"
+ #include "../windows/CCreatureWindow.h"
+ #include "../windows/CWindowWithArtifacts.h"
+ #include "../windows/GUIClasses.h"
+@@ -35,12 +36,22 @@
+ #include "../../lib/gameState/CGameState.h"
+ #include "../../lib/gameState/UpgradeInfo.h"
+ 
++void CGarrisonSlot::showAll(Canvas & to)
++{
++ CIntObject::showAll(to);
++ // Native panels reparent and re-enable the real slots. Paint selection from
++ // garrison state, independently of the classic overlay sprite's enabled state.
++ if(CMessage::isMobileSession() && owner->getSelection()==this)
++  to.drawBorder(pos,Colors::BRIGHT_YELLOW,3);
++}
++
+ void CGarrisonSlot::setHighlight(bool on)
+ {
+ 	if (on)
+ 		selectionImage->enable(); //show
+ 	else
+ 		selectionImage->disable(); //hide
++ redraw();
+ }
+ 
+ void CGarrisonSlot::hover (bool on)
+@@ -587,6 +598,17 @@
  		slot->update();
  }
  
@@ -2196,7 +2230,15 @@
  	if(!getSelection())
 --- a/client/widgets/CGarrisonInt.h
 +++ b/client/widgets/CGarrisonInt.h
-@@ -128,6 +128,7 @@
+@@ -56,6 +56,7 @@
+ 	bool mustForceReselection() const;
+ 
+ 	void setHighlight(bool on);
++ void showAll(Canvas & to) override;
+ 	std::function<void()> getDismiss() const;
+ 
+ 	const CArmedInstance * getObj() const;
+@@ -128,6 +129,7 @@
  	const CArmedInstance* army(EGarrisonType which) const;
  	bool isArmyOwned(EGarrisonType which) const;
  

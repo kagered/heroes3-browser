@@ -126,3 +126,7 @@ The installer writes all four mobile engine files under a content-derived `vendo
 - Hero and town Army Split opens a quantity dialog for the selected owned stack and an empty slot in the same army. A clear hint explains missing selection, insufficient units or a full army. Desktop splitting retains its existing behavior. The landscape split dialog uses real numeric inputs and large increment/decrement controls.
 - iPad fullscreen reserves 96 pixels at the start of the top navigation for Safari's dismissal control. Game gestures suppress page scrolling; Safari's system swipe-to-exit cannot be disabled by page code. Add to Home Screen avoids the browser fullscreen dismissal overlay; standalone launch does not request another fullscreen layer.
 - Test on physical iPad: swipe over the map, system dismissal and return, top controls, split 2-unit stack, recruitment and creature details.
+
+### Army selection feedback
+
+Native garrison slots draw a high-contrast selection border from the actual garrison selection, independent of the classic overlay sprite. Changing or clearing selection repaints the slot. Formation displays the current authoritative tight/loose value and refreshes after the engine applies the change; its effect is the initial placement of stacks in battle. Larger army panels include this explanation. Desktop visuals and formation callbacks remain unchanged.
