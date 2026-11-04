@@ -3420,10 +3420,10 @@
 +  {
 +   // Keep the completed client's score data alive until the original result screens close.
 +   // Joining its workers in endGameplay can block the browser UI thread.
-+   MAIN_THREAD_EM_ASM({if(Module.print)Module.print('Mobile scenario end: dialogs acknowledged, preparing result screens');});
-+   sendClientDisconnecting();
++   // Do not close or join the local server here: sendClientDisconnecting also waits.
++   MAIN_THREAD_EM_ASM({Module.mobileFinishedGame=true;if(Module.print)Module.print('Mobile scenario end: dialogs acknowledged, server shutdown deferred to browser teardown');});
++   setState(EClientState::DISCONNECTING); // ignore further gameplay packets while showing results
 +   GH.curInt=CMM.get();CMM->enable();CMM->menu->switchToTab("main");
-+   MAIN_THREAD_EM_ASM({Module.mobileFinishedGame=true;});
 +   GH.windows().createAndPushWindow<CHighScoreInputScreen>(victory,scenarioHighScores,statistic);
 +   MAIN_THREAD_EM_ASM({if(Module.print)Module.print('Mobile scenario end: result screen opened');});
 +   return;
@@ -3432,6 +3432,17 @@
  		endGameplay();
  		CMM->menu->switchToTab("main");
  		GH.windows().createAndPushWindow<CHighScoreInputScreen>(victory, scenarioHighScores, statistic);
+@@ -898,6 +915,10 @@
+ 		return;
+ 	}
+ 
++#ifdef VCMI_HTML5_BUILD
++ if(MAIN_THREAD_EM_ASM_INT({return Module.mobileAdventureUI && Module.mobileFinishedGame?1:0;}))return;
++#endif
++
+ 	waitForServerShutdown();
+ 
+ 	if(getState() == EClientState::DISCONNECTING)
 --- a/client/NetPacksClient.cpp
 +++ b/client/NetPacksClient.cpp
 @@ -9,6 +9,7 @@
