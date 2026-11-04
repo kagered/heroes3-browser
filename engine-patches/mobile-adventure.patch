@@ -1145,7 +1145,24 @@
  #include "QuickRecruitmentWindow.h"
  #include "CCreatureWindow.h"
  
-@@ -1325,8 +1330,141 @@
+@@ -1090,7 +1095,15 @@
+ 		if(!vstd::contains(town->forbiddenBuildings, BuildingID::GRAIL))
+ 		{
+ 			LOCPLINT->showYesNoDialog(CGI->generaltexth->allTexts[597], //Do you wish this to be the permanent home of the Grail?
+-										[&](){ LOCPLINT->cb->buildBuilding(town, BuildingID::GRAIL); },
++										[&](){
++#ifdef VCMI_HTML5_BUILD
++ MAIN_THREAD_EM_ASM({if(Module.mobileAdventureUI && Module.print)Module.print('Mobile scenario end: Grail placement confirmed');});
++#endif
++ LOCPLINT->cb->buildBuilding(town, BuildingID::GRAIL);
++#ifdef VCMI_HTML5_BUILD
++ MAIN_THREAD_EM_ASM({if(Module.mobileAdventureUI && Module.print)Module.print('Mobile scenario end: Grail build request returned');});
++#endif
++ },
+ 										[&](){ openTownHall(); });
+ 		}
+ 		else
+@@ -1325,8 +1338,141 @@
  	}
  }
  
@@ -1288,7 +1305,7 @@
  	town(Town)
  {
  	OBJECT_CONSTRUCTION;
-@@ -1372,6 +1510,7 @@
+@@ -1372,6 +1518,7 @@
  	townlist->onSelect = std::bind(&CCastleInterface::townChange, this);
  
  	recreateIcons();
@@ -1296,7 +1313,7 @@
  	if (!from)
  		adventureInt->onAudioPaused();
  	CCS->musich->playMusicFromSet("faction", town->getFaction()->getJsonKey(), true, false);
-@@ -1457,6 +1596,7 @@
+@@ -1457,6 +1604,7 @@
  
  void CCastleInterface::recreateIcons()
  {
@@ -1304,7 +1321,7 @@
  	OBJECT_CONSTRUCTION;
  	size_t iconIndex = town->getTown()->clientInfo.icons[town->hasFort()][town->built >= LOCPLINT->cb->getSettings().getInteger(EGameSettings::TOWNS_BUILDINGS_PER_TURN_CAP)];
  
-@@ -1499,6 +1639,7 @@
+@@ -1499,6 +1647,7 @@
  
  void CCastleInterface::keyPressed(EShortcut key)
  {
@@ -1312,7 +1329,7 @@
  	switch(key)
  	{
  	case EShortcut::MOVE_UP:
-@@ -1675,6 +1816,7 @@
+@@ -1675,6 +1824,7 @@
  				boxes[row].push_back(std::make_shared<CBuildingBox>(posX, posY, town, building));
  		}
  	}
@@ -1320,7 +1337,7 @@
  }
  
  CBuildWindow::CBuildWindow(const CGTownInstance *Town, const CBuilding * Building, EBuildingState state, bool rightClick):
-@@ -1740,6 +1882,7 @@
+@@ -1740,6 +1890,7 @@
  		cancel = std::make_shared<CButton>(Point(290, 445), AnimationPath::builtin("ICANCEL"), CButton::tooltip(tooltipNo.toString()), [&](){ close();}, EShortcut::GLOBAL_CANCEL);
  		cancel->setBorderColor(Colors::METALLIC_GOLD);
  	}
@@ -1328,7 +1345,7 @@
  }
  
  void CBuildWindow::buyFunc()
-@@ -2075,6 +2218,7 @@
+@@ -2075,6 +2226,7 @@
  		}
  	}
  
@@ -1336,7 +1353,7 @@
  	redraw();
  }
  
-@@ -2209,3 +2353,85 @@
+@@ -2209,3 +2361,85 @@
  
  	costIcon = std::make_shared<CAnimImage>(AnimationPath::builtin("RESOURCE"), GameResID(EGameResID::GOLD), 0, 148, 244);
  }
@@ -3320,16 +3337,50 @@
  	acceptTurn(queryID, hotseatWait);
  }
  
-@@ -1524,6 +1542,8 @@
+@@ -625,6 +643,13 @@
+ void CPlayerInterface::buildChanged(const CGTownInstance *town, BuildingID buildingID, int what) //what: 1 - built, 2 - demolished
+ {
+ 	EVENT_HANDLER_CALLED_BY_CLIENT;
++ if(buildingID==BuildingID::GRAIL)
++ {
++#ifdef VCMI_HTML5_BUILD
++ MAIN_THREAD_EM_ASM({if(Module.mobileAdventureUI && Module.print)Module.print('Mobile scenario end: Grail building update received');});
++#endif
++ }
++
+ 	adventureInt->onTownChanged(town);
+ 
+ 	if (castleInt)
+@@ -650,6 +675,13 @@
+ 
+ 	for (auto cgh : GH.windows().findWindows<ITownHolder>())
+ 		cgh->buildChanged();
++ if(buildingID==BuildingID::GRAIL)
++ {
++#ifdef VCMI_HTML5_BUILD
++ MAIN_THREAD_EM_ASM({if(Module.mobileAdventureUI && Module.print)Module.print('Mobile scenario end: Grail town refresh finished');});
++#endif
++ }
++
+ }
+ 
+ void CPlayerInterface::battleStartBefore(const BattleID & battleID, const CCreatureSet *army1, const CCreatureSet *army2, int3 tile, const CGHeroInstance *hero1, const CGHeroInstance *hero2)
+@@ -1524,6 +1556,14 @@
  		dialogs.pop_front();
  	}
  
-+ if(auto completion=mobileGameEnd.takeReady(dialogs.empty(),showingDialog->isBusy()))GH.dispatchMainThread(completion);
++ if(auto completion=mobileGameEnd.takeReady(dialogs.empty(),showingDialog->isBusy()))
++ {
++#ifdef VCMI_HTML5_BUILD
++ MAIN_THREAD_EM_ASM({if(Module.mobileAdventureUI && Module.print)Module.print('Mobile scenario end: final dialogs acknowledged; queueing result transition');});
++#endif
++ GH.dispatchMainThread(completion);
++ }
 +
  	assert(adventureInt);
  
  	// Handles mouse and key input
-@@ -1575,6 +1595,12 @@
+@@ -1575,6 +1615,12 @@
  	{
  		if (victoryLossCheckResult.loss())
  			showInfoDialog(CGI->generaltexth->allTexts[95]);
@@ -3342,7 +3393,7 @@
  
  		assert(GH.curInt == LOCPLINT);
  		auto previousInterface = LOCPLINT; //without multiple player interfaces some of lines below are useless, but for hotseat we wanna swap player interface temporarily
-@@ -1818,6 +1844,9 @@
+@@ -1818,6 +1864,9 @@
  		CGI->generaltexth->allTexts[68],
  		[]()
  		{
@@ -3352,7 +3403,7 @@
  			CSH->endGameplay();
  			CMM->menu->switchToTab("load");
  		},
-@@ -1855,3 +1884,13 @@
+@@ -1855,3 +1904,13 @@
  {
  	return std::nullopt;
  }
@@ -3411,7 +3462,23 @@
  #include "Client.h"
  #include "CGameInfo.h"
  #include "ServerRunner.h"
-@@ -670,6 +673,20 @@
+@@ -658,7 +661,15 @@
+ 
+ void CServerHandler::showHighScoresAndEndGameplay(PlayerColor player, bool victory, const StatisticDataSet & statistic)
+ {
++
++#ifdef VCMI_HTML5_BUILD
++ MAIN_THREAD_EM_ASM({if(Module.mobileAdventureUI && Module.print)Module.print('Mobile scenario end: calculating score');});
++#endif
+ 	HighScoreParameter param = HighScore::prepareHighScores(client->gameState(), player, victory);
++#ifdef VCMI_HTML5_BUILD
++ MAIN_THREAD_EM_ASM({if(Module.mobileAdventureUI && Module.print)Module.print('Mobile scenario end: score calculated');});
++#endif
++
+ 
+ 	if(victory && client->gameState()->getStartInfo()->campState)
+ 	{
+@@ -670,6 +681,30 @@
  		scenarioHighScores.parameters.push_back(param);
  		scenarioHighScores.isCampaign = false;
  
@@ -3423,7 +3490,17 @@
 +   // Do not close or join the local server here: sendClientDisconnecting also waits.
 +   MAIN_THREAD_EM_ASM({Module.mobileFinishedGame=true;if(Module.print)Module.print('Mobile scenario end: dialogs acknowledged, server shutdown deferred to browser teardown');});
 +   setState(EClientState::DISCONNECTING); // ignore further gameplay packets while showing results
-+   GH.curInt=CMM.get();CMM->enable();CMM->menu->switchToTab("main");
++   GH.curInt=CMM.get();
++
++#ifdef VCMI_HTML5_BUILD
++ MAIN_THREAD_EM_ASM({if(Module.mobileAdventureUI && Module.print)Module.print('Mobile scenario end: activating title interface');});
++#endif
++   CMM->enable();CMM->menu->switchToTab("main");
++
++#ifdef VCMI_HTML5_BUILD
++ MAIN_THREAD_EM_ASM({if(Module.mobileAdventureUI && Module.print)Module.print('Mobile scenario end: title interface active; constructing result screen');});
++#endif
++
 +   GH.windows().createAndPushWindow<CHighScoreInputScreen>(victory,scenarioHighScores,statistic);
 +   MAIN_THREAD_EM_ASM({if(Module.print)Module.print('Mobile scenario end: result screen opened');});
 +   return;
@@ -3432,7 +3509,7 @@
  		endGameplay();
  		CMM->menu->switchToTab("main");
  		GH.windows().createAndPushWindow<CHighScoreInputScreen>(victory, scenarioHighScores, statistic);
-@@ -898,6 +915,10 @@
+@@ -898,6 +933,10 @@
  		return;
  	}
  
@@ -3445,15 +3522,33 @@
  	if(getState() == EClientState::DISCONNECTING)
 --- a/client/NetPacksClient.cpp
 +++ b/client/NetPacksClient.cpp
-@@ -9,6 +9,7 @@
+@@ -9,6 +9,10 @@
   */
  #include "StdInc.h"
  #include "ClientNetPackVisitors.h"
++#ifdef VCMI_HTML5_BUILD
++#include <emscripten.h>
++#endif
 +#include "windows/CMessage.h"
  
  #include "Client.h"
  #include "CPlayerInterface.h"
-@@ -409,6 +410,17 @@
+@@ -402,13 +406,45 @@
+ 
+ void ApplyClientNetPackVisitor::visitPlayerEndsGame(PlayerEndsGame & pack)
+ {
++#ifdef VCMI_HTML5_BUILD
++ MAIN_THREAD_EM_ASM({if(Module.mobileAdventureUI && Module.print)Module.print('Mobile scenario end: terminal game packet received');});
++#endif
++
+ 	callAllInterfaces(cl, &IGameEventsReceiver::gameOver, pack.player, pack.victoryLossCheckResult);
++#ifdef VCMI_HTML5_BUILD
++ MAIN_THREAD_EM_ASM({if(Module.mobileAdventureUI && Module.print)Module.print('Mobile scenario end: gameOver callbacks returned');});
++#endif
++
+ 
+ 	bool localHumanWinsGame = vstd::contains(cl.playerint, pack.player) && cl.getPlayerState(pack.player)->human && pack.victoryLossCheckResult.victory();
+ 	bool lastHumanEndsGame = CSH->howManyPlayerInterfaces() == 1 && vstd::contains(cl.playerint, pack.player) && cl.getPlayerState(pack.player)->human && !settings["session"]["spectate"].Bool();
  
  	if(lastHumanEndsGame || localHumanWinsGame)
  	{
@@ -3461,8 +3556,21 @@
 +  {
 +   LOCPLINT->deferMobileGameEnd([player=pack.player,victory=pack.victoryLossCheckResult.victory(),statistic=pack.statistic]()
 +   {
++
++#ifdef VCMI_HTML5_BUILD
++ MAIN_THREAD_EM_ASM({if(Module.mobileAdventureUI && Module.print)Module.print('Mobile scenario end: clearing game windows');});
++#endif
 +    GH.windows().popWindows(GH.windows().count());
++
++#ifdef VCMI_HTML5_BUILD
++ MAIN_THREAD_EM_ASM({if(Module.mobileAdventureUI && Module.print)Module.print('Mobile scenario end: game windows cleared; releasing map');});
++#endif
 +    adventureInt.reset();
++
++#ifdef VCMI_HTML5_BUILD
++ MAIN_THREAD_EM_ASM({if(Module.mobileAdventureUI && Module.print)Module.print('Mobile scenario end: map released; preparing scores');});
++#endif
++
 +    CSH->showHighScoresAndEndGameplay(player,victory,statistic);
 +   });
 +   return;

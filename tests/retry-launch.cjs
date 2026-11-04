@@ -13,3 +13,11 @@ assert.equal(returned,0,'engine teardown must wait for the confirmation callback
 console.log('PASS: confirmed menu return schedules existing teardown and one-shot title-menu relaunch');
 
 const logCode=app.slice(app.indexOf('const log ='),app.indexOf('const status ='))+'; log("Mobile scenario end: result screen opened");';const completionStore=new Map(),logElement={textContent:''};vm.runInNewContext(logCode,{$:()=>logElement,console:{log(){}},autoJoining:false,sessionStorage:{setItem:(k,v)=>completionStore.set(k,v)}});assert.equal(completionStore.get('heroes3.lastCompletionPhase'),'Mobile scenario end: result screen opened');assert(logElement.textContent.includes('result screen opened'));
+
+const durableStore=new Map();const durableStorage={getItem:k=>durableStore.get(k)||null,setItem:(k,v)=>durableStore.set(k,v)};const traceSource=app.slice(app.indexOf('function readCompletionTrace()'),app.indexOf('const status ='));
+const firstTab={localStorage:durableStorage};vm.createContext(firstTab);vm.runInContext(traceSource,firstTab);firstTab.recordCompletionPhase('Mobile scenario end: terminal game packet received');
+const reopenedTab={localStorage:durableStorage};vm.createContext(reopenedTab);vm.runInContext(traceSource,reopenedTab);assert.equal(reopenedTab.readCompletionTrace()[0].phase,'Mobile scenario end: terminal game packet received','trace survives reopening without any sessionStorage');
+for(let i=0;i<30;i++)reopenedTab.recordCompletionPhase('Mobile scenario end: phase '+i);assert.equal(reopenedTab.readCompletionTrace().length,24);
+reopenedTab.recordCompletionPhase('Mobile scenario end: Grail placement confirmed');assert.equal(reopenedTab.readCompletionTrace().length,1,'new Grail attempt clears stale checkpoints');
+const unavailableStorage={localStorage:{getItem(){throw Error('unavailable')},setItem(){throw Error('unavailable')}}};vm.createContext(unavailableStorage);vm.runInContext(traceSource,unavailableStorage);assert.doesNotThrow(()=>unavailableStorage.recordCompletionPhase('Mobile scenario end: phase'));assert.equal(unavailableStorage.readCompletionTrace().length,0);
+console.log('PASS: bounded completion trace survives new tabs and tolerates blocked storage');

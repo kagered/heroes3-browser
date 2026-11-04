@@ -4,12 +4,25 @@ const $ = id => document.getElementById(id);
 const log = (...args) => {
   const text = args.join(' ');
   $('log').textContent += text + '\n'; console.log(...args);
-  if(text.startsWith('Mobile scenario end:'))try{sessionStorage.setItem('heroes3.lastCompletionPhase',text);}catch{}
+  if(text.startsWith('Mobile scenario end:'))recordCompletionPhase(text);
   if (autoJoining && text.includes('Connection established')) {
     autoJoining = false;
     $('connecting').hidden = true;
   }
 };
+function readCompletionTrace() {
+  try {
+    const value=JSON.parse(localStorage.getItem('heroes3.completionTrace.v1')||'[]');
+    return Array.isArray(value)?value.filter(item=>item && typeof item.phase==='string' && Number.isFinite(item.time)).slice(-24):[];
+  } catch {return [];}
+}
+function recordCompletionPhase(phase) {
+  try {sessionStorage.setItem('heroes3.lastCompletionPhase',phase);}catch{}
+  try {
+    const trace=phase==='Mobile scenario end: Grail placement confirmed'?[]:readCompletionTrace();
+    trace.push({phase,time:Date.now()});localStorage.setItem('heroes3.completionTrace.v1',JSON.stringify(trace.slice(-24)));
+  } catch {}
+}
 const status = (text, value) => { $('status').textContent = text; if (value !== undefined) $('progress').value = value; };
 const loadingStages = [
   ['Подготовка хранилища', 'Preparing storage'],
@@ -552,7 +565,9 @@ async function start(autoConnect=false) {
   try { resume=sessionStorage.getItem('heroes3.retryLaunch')==='1';sessionStorage.removeItem('heroes3.retryLaunch'); } catch {}
   try {
     if (window.HEROES_BUILD) log(`Build ${window.HEROES_BUILD.version} · ${window.HEROES_BUILD.engine}`);
-    try { const phase=sessionStorage.getItem('heroes3.lastCompletionPhase');if(phase)log('Previous scenario completion: '+phase); } catch {}
+    const completionTrace=readCompletionTrace();
+    if(completionTrace.length)for(const item of completionTrace)log('Previous scenario completion ['+new Date(item.time).toISOString()+']: '+item.phase);
+    else try { const phase=sessionStorage.getItem('heroes3.lastCompletionPhase');if(phase)log('Previous scenario completion: '+phase); } catch {}
     try { const previous = JSON.parse(sessionStorage.getItem('heroes3.lastShutdown')); if (previous) log(`Previous game stopped: ${previous.workers} workers, ${previous.audio} audio contexts`); } catch {}
     const languages = await (await fetch('/api/languages')).json();
     for (const option of $('language').options) option.disabled = !languages.languages.includes(option.value);

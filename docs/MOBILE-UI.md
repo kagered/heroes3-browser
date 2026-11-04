@@ -216,3 +216,7 @@ The supplied Grail video was decoded into frames: the town already contains its 
 The completed-session guard stays set until the runtime is destroyed. A separate one-shot flag prevents repeated relaunch requests while keeping late disconnect callbacks away from synchronous waits during teardown.
 
 Completion checkpoints are retained in session storage and copied into the launch log on the next page load, so a reload after a stall does not erase the last completed phase. This local diagnostic contains only the phase label.
+
+### Durable scenario completion diagnostics
+
+Completion checkpoints persist in localStorage across closing and reopening a frozen tab. The launch log prints the previous attempt with timestamps. A new confirmed Grail placement resets the trace; only the latest 24 generic phase labels are retained. Checkpoints cover Grail updates, terminal packets, dialog acknowledgement, window cleanup and score-screen construction. This diagnostic update still requires an iPad reproduction; the freeze is not yet confirmed fixed.
