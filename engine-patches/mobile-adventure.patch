@@ -3273,17 +3273,18 @@
  }
 --- a/client/CPlayerInterface.cpp
 +++ b/client/CPlayerInterface.cpp
-@@ -9,6 +9,9 @@
+@@ -9,6 +9,10 @@
   */
  #include "StdInc.h"
  #include "CPlayerInterface.h"
++#include "windows/CMessage.h"
 +#ifdef VCMI_HTML5_BUILD
 +#include <emscripten.h>
 +#endif
  
  #include <vcmi/Artifact.h>
  
-@@ -217,6 +220,10 @@
+@@ -217,6 +221,10 @@
  	if (player == playerID)
  	{
  		makingTurn = false;
@@ -3294,7 +3295,7 @@
  		closeAllDialogs();
  
  		// remove all pending dialogs that do not expect query answer
-@@ -243,7 +250,13 @@
+@@ -243,7 +251,13 @@
  		bool isHuman = cb->getStartInfo()->playerInfos.count(player) && cb->getStartInfo()->playerInfos.at(player).isControlledByHuman();
  
  		if (makingTurn == false)
@@ -3308,7 +3309,7 @@
  	}
  }
  
-@@ -342,6 +355,10 @@
+@@ -342,6 +356,10 @@
  			adventureInt->onPlayerTurnStarted(playerID);
  		}
  
@@ -3319,7 +3320,29 @@
  	acceptTurn(queryID, hotseatWait);
  }
  
-@@ -1818,6 +1835,9 @@
+@@ -1524,6 +1542,8 @@
+ 		dialogs.pop_front();
+ 	}
+ 
++ if(auto completion=mobileGameEnd.takeReady(dialogs.empty(),showingDialog->isBusy()))GH.dispatchMainThread(completion);
++
+ 	assert(adventureInt);
+ 
+ 	// Handles mouse and key input
+@@ -1575,6 +1595,12 @@
+ 	{
+ 		if (victoryLossCheckResult.loss())
+ 			showInfoDialog(CGI->generaltexth->allTexts[95]);
++
++  if(CMessage::isMobileSession() && CSH->howManyPlayerInterfaces()==1 && !cb->getStartInfo()->campState)
++  {
++   makingTurn=true; // keep queued end-of-scenario messages responsive until acknowledged
++   return;
++  }
+ 
+ 		assert(GH.curInt == LOCPLINT);
+ 		auto previousInterface = LOCPLINT; //without multiple player interfaces some of lines below are useless, but for hotseat we wanna swap player interface temporarily
+@@ -1818,6 +1844,9 @@
  		CGI->generaltexth->allTexts[68],
  		[]()
  		{
@@ -3329,6 +3352,20 @@
  			CSH->endGameplay();
  			CMM->menu->switchToTab("load");
  		},
+@@ -1855,3 +1884,13 @@
+ {
+ 	return std::nullopt;
+ }
++
++void CPlayerInterface::deferMobileGameEnd(std::function<void()> completion)
++{
++ EVENT_HANDLER_CALLED_BY_CLIENT;
++ if(!mobileGameEnd.schedule(std::move(completion)))return;
++ makingTurn=true;
++#ifdef VCMI_HTML5_BUILD
++ MAIN_THREAD_EM_ASM({if(Module.print)Module.print('Mobile scenario end: waiting asynchronously for dialog acknowledgement');});
++#endif
++}
 --- a/client/mainmenu/CMainMenu.cpp
 +++ b/client/mainmenu/CMainMenu.cpp
 @@ -9,6 +9,9 @@
@@ -3374,7 +3411,7 @@
  #include "Client.h"
  #include "CGameInfo.h"
  #include "ServerRunner.h"
-@@ -670,6 +673,18 @@
+@@ -670,6 +673,20 @@
  		scenarioHighScores.parameters.push_back(param);
  		scenarioHighScores.isCampaign = false;
  
@@ -3383,13 +3420,91 @@
 +  {
 +   // Keep the completed client's score data alive until the original result screens close.
 +   // Joining its workers in endGameplay can block the browser UI thread.
++   MAIN_THREAD_EM_ASM({if(Module.print)Module.print('Mobile scenario end: dialogs acknowledged, preparing result screens');});
 +   sendClientDisconnecting();
 +   GH.curInt=CMM.get();CMM->enable();CMM->menu->switchToTab("main");
 +   MAIN_THREAD_EM_ASM({Module.mobileFinishedGame=true;});
 +   GH.windows().createAndPushWindow<CHighScoreInputScreen>(victory,scenarioHighScores,statistic);
++   MAIN_THREAD_EM_ASM({if(Module.print)Module.print('Mobile scenario end: result screen opened');});
 +   return;
 +  }
 +#endif
  		endGameplay();
  		CMM->menu->switchToTab("main");
  		GH.windows().createAndPushWindow<CHighScoreInputScreen>(victory, scenarioHighScores, statistic);
+--- a/client/NetPacksClient.cpp
++++ b/client/NetPacksClient.cpp
+@@ -9,6 +9,7 @@
+  */
+ #include "StdInc.h"
+ #include "ClientNetPackVisitors.h"
++#include "windows/CMessage.h"
+ 
+ #include "Client.h"
+ #include "CPlayerInterface.h"
+@@ -409,6 +410,17 @@
+ 
+ 	if(lastHumanEndsGame || localHumanWinsGame)
+ 	{
++  if(CMessage::isMobileSession() && LOCPLINT && CSH->howManyPlayerInterfaces()==1 && !cl.gameState()->getStartInfo()->campState)
++  {
++   LOCPLINT->deferMobileGameEnd([player=pack.player,victory=pack.victoryLossCheckResult.victory(),statistic=pack.statistic]()
++   {
++    GH.windows().popWindows(GH.windows().count());
++    adventureInt.reset();
++    CSH->showHighScoresAndEndGameplay(player,victory,statistic);
++   });
++   return;
++  }
++
+ 		assert(adventureInt);
+ 		if(adventureInt)
+ 		{
+--- a/client/CPlayerInterface.h
++++ b/client/CPlayerInterface.h
+@@ -10,6 +10,7 @@
+ #pragma once
+ 
+ #include "ArtifactsUIController.h"
++#include "gui/DeferredDialogCompletion.h"
+ 
+ #include "../lib/FunctionList.h"
+ #include "../lib/CGameInterface.h"
+@@ -61,12 +62,14 @@
+ {
+ 	bool ignoreEvents;
+ 	int autosaveCount;
++ DeferredDialogCompletion mobileGameEnd;
+ 
+ 	std::list<std::shared_ptr<CInfoWindow>> dialogs; //queue of dialogs awaiting to be shown (not currently shown!)
+ 
+ 	std::unique_ptr<HeroMovementController> movementController;
+ 	std::unique_ptr<PathfinderCache> pathfinderCache;
+ public: // TODO: make private
++ void deferMobileGameEnd(std::function<void()> completion);
+ 	std::unique_ptr<ArtifactsUIController> artifactController;
+ 	std::shared_ptr<Environment> env;
+ 
+--- /dev/null
++++ b/client/gui/DeferredDialogCompletion.h
+@@ -0,0 +1,20 @@
++/* Nonblocking dialog completion gate. GPL v2.0 or later, as the VCMI client. */
++#pragma once
++#include <functional>
++#include <utility>
++
++class DeferredDialogCompletion
++{
++ std::function<void()> completion;
++public:
++ bool schedule(std::function<void()> next)
++ {
++  if(completion)return false;
++  completion=std::move(next);return true;
++ }
++ std::function<void()> takeReady(bool queueEmpty,bool dialogBusy)
++ {
++  if(!queueEmpty || dialogBusy)return {};
++  auto ready=std::move(completion);completion={};return ready;
++ }
++};
