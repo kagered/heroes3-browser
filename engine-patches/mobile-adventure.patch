@@ -2372,7 +2372,7 @@
 +}
 --- /dev/null
 +++ b/client/windows/MobileWindow.h
-@@ -0,0 +1,95 @@
+@@ -0,0 +1,99 @@
 +/* Native lab layouts. GPL v2.0 or later, as the VCMI client. */
 +#pragma once
 +#include "CMessage.h"
@@ -2396,6 +2396,7 @@
 +class CMobilePanel : public CIntObject
 +{
 + std::shared_ptr<CFilledTexture> texture;
++ std::shared_ptr<CFilledTexture> screenBackground;
 + std::shared_ptr<CLabel> heading;
 + std::vector<std::shared_ptr<CMobileTownButton>> tabs;
 + std::shared_ptr<bool> resizeQueued=std::make_shared<bool>(false);
@@ -2406,10 +2407,13 @@
 + std::vector<std::function<void()>> refreshers;
 + std::vector<std::function<void(Canvas &)>> painters;
 + std::function<void(int)> onPage;
-+ CMobilePanel(Point size,const std::string & title,const std::vector<std::string> & names)
++ CMobilePanel(Point size,const std::string & title,const std::vector<std::string> & names,bool coverScreen=false)
 + {
 +  OBJECT_CONSTRUCTION;
 +  pos.w=size.x;pos.h=size.y;
++  // Full-page native windows repaint the margins as well as their panel. This
++  // removes old borders from the backing surface after viewport changes.
++  if(coverScreen)screenBackground=std::make_shared<CFilledTexture>(ImagePath::builtin("DiBoxBck"),Rect(-pos.x,-pos.y,GH.screenDimensions().x,GH.screenDimensions().y));
 +  texture=std::make_shared<CFilledTexture>(ImagePath::builtin("DiBoxBck"),Rect(0,0,pos.w,pos.h));
 +  heading=std::make_shared<CLabel>(16,18,FONT_MEDIUM,ETextAlignment::CENTERLEFT,Colors::YELLOW,title);
 +  heading->setMaxWidth(pos.w-156);
@@ -3796,8 +3800,31 @@
  #include "../../lib/gameState/HighScore.h"
  #include "../../lib/gameState/GameStatistics.h"
  
-@@ -55,7 +57,7 @@
+@@ -24,7 +26,7 @@
+ 
+ class TransparentFilledRectangle;
+ 
+-class CHighScoreScreen : public CWindowObject
++class CHighScoreScreen : public CWindowObject, public IMobileWindow
+ {
+ public:
+ 	enum HighScorePage { SCENARIO, CAMPAIGN };
+@@ -50,12 +52,21 @@
+ 
+ 	const int screenRows = 11;
+ 
++ std::shared_ptr<CMobilePanel> mobilePanel;
++ int mobilePage=0;
++ bool mobileInitialPage=true;
++ void setupMobile();
++ void queueMobilePage(int page,HighScorePage category);
+ 	int highlighted;
+ public:
  	CHighScoreScreen(HighScorePage highscorepage, int highlighted = -1);
++ bool isMobileDialog() const override{return bool(mobilePanel);}
++ void show(Canvas &) override;
++ void showAll(Canvas &) override;
++ void keyPressed(EShortcut) override;
  };
  
 -class CHighScoreInput : public CWindowObject
@@ -3805,7 +3832,7 @@
  {
  	std::shared_ptr<CMultiLineLabel> text;
  	std::shared_ptr<CButton> buttonOk;
-@@ -65,13 +67,22 @@
+@@ -65,13 +76,22 @@
  
  	std::function<void(std::string text)> ready;
  	
@@ -3829,7 +3856,7 @@
  {
  	std::vector<std::shared_ptr<CLabel>> texts;
  	std::shared_ptr<CHighScoreInput> input;
-@@ -85,11 +96,16 @@
+@@ -85,11 +105,16 @@
  	HighScoreCalculation calc;
  	StatisticDataSet stat;
  
@@ -3859,7 +3886,34 @@
  #include "CStatisticScreen.h"
  #include "CMainMenu.h"
  #include "../gui/CGuiHandler.h"
-@@ -178,6 +182,7 @@
+@@ -41,6 +45,7 @@
+ 	: CWindowObject(BORDERED), highscorepage(highscorepage), highlighted(highlighted)
+ {
+ 	addUsedEvents(SHOW_POPUP);
++ if(CMessage::isMobileSession()){setupMobile();if(mobilePanel)return;}
+ 
+ 	OBJECT_CONSTRUCTION;
+ 	pos = center(Rect(0, 0, 800, 600));
+@@ -53,6 +58,7 @@
+ 
+ void CHighScoreScreen::showPopupWindow(const Point & cursorPosition)
+ {
++ if(mobilePanel)return;
+ 	for (int i = 0; i < screenRows; i++)
+ 	{
+ 		bool currentGameNotInListEntry = i == (screenRows - 1) && highlighted > (screenRows - 1);
+@@ -160,8 +166,8 @@
+ 		{
+ 			Settings entry = persistentStorage.write["highscore"];
+ 			entry->clear();
+-			addHighScores();
+-			addButtons();
++			if(mobilePanel){mobilePage=0;setupMobile();}
++   else {addHighScores();addButtons();}
+ 			redraw();
+ 		},
+ 		0
+@@ -178,6 +184,7 @@
  	: CWindowObject(BORDERED), won(won), calc(calc), stat(statistic)
  {
  	addUsedEvents(LCLICK | KEYBOARD);
@@ -3867,7 +3921,7 @@
  
  	OBJECT_CONSTRUCTION;
  	pos = center(Rect(0, 0, 800, 600));
-@@ -269,11 +274,12 @@
+@@ -269,11 +276,12 @@
  
  void CHighScoreInputScreen::show(Canvas & to)
  {
@@ -3881,7 +3935,7 @@
  	if(statisticButton && statisticButton->pos.isInside(cursorPosition))
  		return;
  
-@@ -285,11 +291,57 @@
+@@ -285,11 +293,57 @@
  		return;
  	}
  
@@ -3939,7 +3993,7 @@
  			if(!text.empty())
  			{
  				int pos = addEntry(text);
-@@ -299,40 +351,63 @@
+@@ -299,40 +353,105 @@
  			else
  				stopMusicAndClose();
  		});
@@ -3988,16 +4042,16 @@
 +{
 + OBJECT_CONSTRUCTION;
 + if(prepareMobileWindow(*this,mobilePanel,520,true).w==0)return;
-+ mobilePanel=std::make_shared<CMobilePanel>(Point(pos.w,pos.h),mobileText(won?"Победа!":"Поражение",won?"Victory!":"Defeat"),std::vector<std::string>{});
++ mobilePanel=std::make_shared<CMobilePanel>(Point(pos.w,pos.h),mobileText(won?"Победа!":"Поражение",won?"Victory!":"Defeat"),std::vector<std::string>{},true);
 + auto score=calc.calculate();
 + auto rank=score.cheater?CGI->generaltexth->translate("core.genrltxt.260"):(*CGI->creh)[HighScoreCalculation::getCreatureForPoints(score.total,calc.isCampaign)]->getNameSingularTranslated();
 + const std::vector<std::pair<std::string,std::string>> values={
 +  {mobileText("Сценарий","Scenario"),calc.parameters[0].scenarioName},
-+  {CGI->generaltexth->translate("core.genrltxt.438"),std::to_string(score.sumDays)},
-+  {CGI->generaltexth->translate("core.genrltxt.439"),std::to_string(score.basic)},
-+  {CGI->generaltexth->translate("core.genrltxt.440"),CGI->generaltexth->translate("core.arraytxt."+std::to_string(142+calc.parameters[0].difficulty))},
-+  {CGI->generaltexth->translate("core.genrltxt.441"),std::to_string(score.total)},
-+  {CGI->generaltexth->translate("core.genrltxt.676"),rank}
++  {mobileText("Дней в игре","In-game days"),std::to_string(score.sumDays)},
++  {mobileText("Базовый счёт","Base score"),std::to_string(score.basic)},
++  {mobileText("Сложность","Difficulty"),CGI->generaltexth->translate("core.arraytxt."+std::to_string(142+calc.parameters[0].difficulty))},
++  {mobileText("Итоговый счёт","Final score"),std::to_string(score.total)},
++  {mobileText("Ранг","Rank"),rank}
 + };
 + int gap=(pos.h-104)/3,cw=(pos.w-40)/2;
 + for(int i=0;i<values.size();++i){int x=16+(i%2)*(cw+8),y=44+(i/2)*gap;
@@ -4040,6 +4094,48 @@
 +void CHighScoreInput::show(Canvas & to){if(mobilePanel){syncMobileName();mobilePanel->resize(this,[this](){setupMobile();},260);mobilePanel->show(to);}else CWindowObject::show(to);}
 +void CHighScoreInput::showAll(Canvas & to){if(mobilePanel){syncMobileName();mobilePanel->showAll(to);}else CWindowObject::showAll(to);}
 +void CHighScoreInput::keyPressed(EShortcut key){if(!mobilePanel)return;if(key==EShortcut::GLOBAL_CANCEL)abort();else if(key==EShortcut::GLOBAL_ACCEPT || key==EShortcut::GLOBAL_RETURN)okay();}
++
++void CHighScoreScreen::queueMobilePage(int page,HighScorePage category)
++{
++ std::weak_ptr<CIntObject> owner=GH.windows().topWindow<CIntObject>();
++ GH.dispatchMainThread([this,owner,page,category](){if(auto live=owner.lock();live && GH.windows().isTopWindow(live)){if(highscorepage!=category)highlighted=-1;highscorepage=category;mobilePage=page;setupMobile();GH.windows().totalRedraw();}});
++}
++void CHighScoreScreen::setupMobile()
++{
++ OBJECT_CONSTRUCTION;
++ if(prepareMobileWindow(*this,mobilePanel,0,true).w==0)return;
++ mobilePanel=std::make_shared<CMobilePanel>(Point(pos.w,pos.h),mobileText("Таблица рекордов","High scores"),std::vector<std::string>{},true);
++ mobilePanel->add<CMobileTownButton>(0,Rect(pos.w-132,0,120,40),mobileText("Закрыть","Close"),[this](){buttonExitClick();});
++ const auto & stored=persistentStorage["highscore"][highscorepage==SCENARIO?"scenario":"campaign"].Vector();
++ std::vector<JsonNode> records;
++ int highlightedRow=-1;
++ for(int i=0;i<stored.size();++i)if(!stored[i]["player"].String().empty() || stored[i]["points"].Integer()!=0){if(i==highlighted)highlightedRow=records.size();records.push_back(stored[i]);}
++ int perPage=std::max(1,(pos.h-156)/66);
++ int pages=std::max(1,(int(records.size())+perPage-1)/perPage);
++ if(mobileInitialPage){mobileInitialPage=false;if(highlightedRow>=0)mobilePage=highlightedRow/perPage;}
++ mobilePage=std::clamp(mobilePage,0,pages-1);
++ if(records.empty())mobilePanel->add<CLabel>(0,16,64,FONT_MEDIUM,ETextAlignment::TOPLEFT,Colors::WHITE,mobileText("Пока нет результатов","No results yet"),pos.w-32);
++ for(int i=0;i<perPage;++i){int index=mobilePage*perPage+i;if(index>=records.size())break;
++  const auto & record=records[index];int y=48+i*66;bool selected=index==highlightedRow;
++  const auto color=selected?Colors::YELLOW:Colors::WHITE;
++  mobilePanel->add<CLabel>(0,20,y,FONT_MEDIUM,ETextAlignment::TOPLEFT,color,std::to_string(index+1)+". "+record["player"].String(),pos.w-230);
++  mobilePanel->add<CLabel>(0,20,y+26,FONT_SMALL,ETextAlignment::TOPLEFT,Colors::WHITE,record[highscorepage==SCENARIO?"scenarioName":"campaignName"].String(),pos.w-230);
++  mobilePanel->add<CLabel>(0,pos.w-20,y,FONT_MEDIUM,ETextAlignment::TOPRIGHT,color,mobileText("Счёт: ","Score: ")+std::to_string(record["points"].Integer()),190);
++  mobilePanel->add<CLabel>(0,pos.w-20,y+26,FONT_SMALL,ETextAlignment::TOPRIGHT,Colors::WHITE,mobileText("Дней: ","Days: ")+std::to_string(record["days"].Integer()),190);
++  Rect row(pos.x+12,pos.y+y-4,pos.w-24,58);
++  mobilePanel->painters.push_back([row,selected](Canvas & to){to.drawBorder(row,selected?Colors::BRIGHT_YELLOW:Colors::METALLIC_GOLD,selected?2:1);});
++ }
++ mobilePanel->add<CMobileTownButton>(0,Rect(12,pos.h-100,120,40),mobileText("Назад","Previous"),[this](){queueMobilePage(mobilePage-1,highscorepage);},mobilePage>0);
++ mobilePanel->add<CLabel>(0,pos.w/2,pos.h-80,FONT_MEDIUM,ETextAlignment::CENTER,Colors::WHITE,std::to_string(mobilePage+1)+" / "+std::to_string(pages));
++ mobilePanel->add<CMobileTownButton>(0,Rect(pos.w-132,pos.h-100,120,40),mobileText("Далее","Next"),[this](){queueMobilePage(mobilePage+1,highscorepage);},mobilePage+1<pages);
++ int width=(pos.w-40)/3;
++ auto scenario=mobilePanel->add<CMobileTownButton>(0,Rect(12,pos.h-52,width,44),mobileText("Сценарии","Scenarios"),[this](){queueMobilePage(0,SCENARIO);});scenario->setSelected(highscorepage==SCENARIO);
++ auto campaign=mobilePanel->add<CMobileTownButton>(0,Rect(20+width,pos.h-52,width,44),mobileText("Кампании","Campaigns"),[this](){queueMobilePage(0,CAMPAIGN);});campaign->setSelected(highscorepage==CAMPAIGN);
++ mobilePanel->add<CMobileTownButton>(0,Rect(28+2*width,pos.h-52,width,44),mobileText("Сбросить","Reset"),[this](){buttonResetClick();});
++}
++void CHighScoreScreen::show(Canvas & to){if(mobilePanel){mobilePanel->resize(this,[this](){setupMobile();});mobilePanel->show(to);}else CWindowObject::show(to);}
++void CHighScoreScreen::showAll(Canvas & to){if(mobilePanel)mobilePanel->showAll(to);else CWindowObject::showAll(to);}
++void CHighScoreScreen::keyPressed(EShortcut key){if(mobilePanel && (key==EShortcut::GLOBAL_CANCEL || key==EShortcut::GLOBAL_RETURN || key==EShortcut::GLOBAL_ACCEPT))buttonExitClick();}
 --- a/client/mainmenu/CStatisticScreen.h
 +++ b/client/mainmenu/CStatisticScreen.h
 @@ -9,6 +9,8 @@
@@ -4176,7 +4272,7 @@
 + OBJECT_CONSTRUCTION;
 + mainContent.reset();
 + if(prepareMobileWindow(*this,mobilePanel,0,true).w==0)return;
-+ mobilePanel=std::make_shared<CMobilePanel>(Point(pos.w,pos.h),mobileText("Статистика","Statistics"),std::vector<std::string>{});
++ mobilePanel=std::make_shared<CMobilePanel>(Point(pos.w,pos.h),mobileText("Статистика","Statistics"),std::vector<std::string>{},true);
 + contentArea=Rect(12,40,pos.w-24,pos.h-104);
 + {ObjectConstruction page(mobilePanel->pages[0].get());mainContent=getContent(mobileContent,mobileResource);}
 + int bw=(pos.w-40)/3;

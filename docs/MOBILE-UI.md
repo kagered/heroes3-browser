@@ -237,3 +237,11 @@ The user confirmed Grail completion now reaches the result screen on iPad with r
 Statistics use a native mobile panel. Overview pages show one actual participant at a time with readable metrics and paged rows; the original charts remain available in the enlarged content area. Select-view and resource selectors use large paged buttons and a cancel action. Result windows use the mobile screen area even after the adventure map has been removed.
 
 The high-score name prompt is a separate mobile window and uses the existing browser input/keyboard bridge, including the pinned field above the iPad keyboard. Player names preserve Unicode and punctuation; save filenames keep their existing filename filter. The input is synchronized before submitting and hidden on save/cancel. Desktop layouts retain their original branches. Public tests cover player-name input versus filename filtering; web compilation checks the native changes. Interactive browser QA is unavailable; the new result/statistics/name layouts still need a physical-device check.
+
+### Result units, repainting and mobile high scores
+
+The result duration is now explicitly labeled `Дней в игре` / `In-game days`; it is the engine's scenario-day count, not elapsed real-world play time. Other mobile score labels use plain localized captions to avoid inline formatting markers in narrow labels.
+
+Full-page result, statistics and high-score panels repaint the whole game surface with the original dialog texture before drawing their content, including outside-panel margins. This clears stale borders left in the backing surface after viewport/layout changes. Small dialogs still preserve their underlying screen.
+
+The mobile high-score list now uses readable two-line rows with player, map/campaign, points and days; pagination, scenario/campaign selection, current-result highlighting and Close are native touch controls. Empty legacy placeholder records are omitted. Reset keeps its original confirmation and persistence behavior. Desktop high scores remain unchanged. Web build and repository checks cover compilation/integration; physical iPad layout verification remains pending.
