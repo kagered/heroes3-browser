@@ -4,14 +4,20 @@ import subprocess
 import tempfile
 import sys
 text=(Path(sys.argv[1])/'client/battle/BattleWindow.cpp').read_text()
-a=text.index('Point BattleWindow::mobileInputPoint(')
-b=text.index('\nvoid BattleWindow::setupMobile()',a)
-method=text[a:b]
+def method(signature):
+ a=text.index(signature);opening=text.index('{',a);depth=1;end=opening+1
+ while depth:
+  depth+=(text[end]=='{')-(text[end]=='}');end+=1
+ return text[a:end]
+method=method('bool BattleWindow::mobileBattleFieldHit(')+'\n'+method('Point BattleWindow::mobileInputPoint(')
 fixture=r'''
 #include <cassert>
+#include <memory>
+#include <vector>
 struct Point{int x,y;Point(int x,int y):x(x),y(y){}};
 struct Rect{int x,y,w,h;bool isInside(Point p)const{return p.x>=x&&p.y>=y&&p.x<x+w&&p.y<y+h;}};
-struct BattleWindow{bool mobilePanel=false;Rect mobileField{0,0,800,556};Rect mobileSource{0,0,800,556};Point mobileInputPoint(const Point &)const;};
+struct Tile{Rect pos;};
+struct BattleWindow{bool mobilePanel=false;bool mobileMenuOpen=false;std::vector<std::shared_ptr<Tile>> mobileQuickTiles;bool mobileBattleFieldHit(const Point &)const;Rect mobileField{0,0,800,556};Rect mobileSource{0,0,800,556};Point mobileInputPoint(const Point &)const;};
 '''+method+r'''
 int main(){
  BattleWindow window;
@@ -30,6 +36,11 @@ int main(){
  }
  window.mobileField=Rect{50,80,400,250};window.mobileSource=Rect{200,150,400,250};
  auto cropped=window.mobileInputPoint(Point(100,130));assert(cropped.x==250&&cropped.y==200);
+ window.mobileQuickTiles.push_back(std::make_shared<Tile>(Tile{Rect{90,120,60,56}}));
+ assert(!window.mobileBattleFieldHit(Point(100,130)));
+ auto blocked=window.mobileInputPoint(Point(100,130));assert(blocked.x<0);
+ window.mobileQuickTiles.clear();window.mobileMenuOpen=true;
+ assert(!window.mobileBattleFieldHit(Point(200,200)));
 }
 '''
 with tempfile.TemporaryDirectory() as folder:

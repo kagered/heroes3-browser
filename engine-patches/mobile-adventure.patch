@@ -4518,7 +4518,15 @@
  
  #include "BattleInterface.h"
  #include "BattleInterfaceClasses.h"
-@@ -921,6 +923,7 @@
+@@ -476,6 +478,7 @@
+ 
+ void BattleWindow::keyPressed(EShortcut key)
+ {
++ if(mobilePanel && mobileMenuOpen && key==EShortcut::GLOBAL_CANCEL){toggleMobileMenu();return;}
+ 	if (owner.openingPlaying())
+ 	{
+ 		owner.openingEnd();
+@@ -921,6 +924,7 @@
  
  void BattleWindow::showAll(Canvas & to)
  {
@@ -4526,7 +4534,7 @@
  	CIntObject::showAll(to);
  
  	if (GH.screenDimensions().x != 800 || GH.screenDimensions().y !=600)
-@@ -929,6 +932,7 @@
+@@ -929,6 +933,7 @@
  
  void BattleWindow::show(Canvas & to)
  {
@@ -4534,16 +4542,63 @@
  	CIntObject::show(to);
  	LOCPLINT->cingconsole->show(to);
  }
-@@ -939,3 +943,78 @@
+@@ -939,3 +944,125 @@
  		logGlobal->error("Only top interface must be closed");
  	GH.windows().popWindows(1);
  }
 +
++
++namespace {
++class BattleQuickTile : public CIntObject
++{
++ std::shared_ptr<CAnimImage> icon;
++ std::shared_ptr<CLabel> label;
++ std::function<void()> action;
++ bool available=true;
++public:
++ BattleQuickTile(Rect rect,const std::string & text,const char * image,std::function<void()> action):CIntObject(LCLICK),action(action)
++ {
++  OBJECT_CONSTRUCTION;pos=rect+pos.topLeft();
++  if(image && *image){icon=std::make_shared<CAnimImage>(AnimationPath::builtin(image),0,0,0,0);icon->moveTo(Point(pos.x+(pos.w-icon->pos.w)/2,pos.y+4));}
++  label=std::make_shared<CLabel>(pos.w/2,icon?pos.h-11:pos.h/2,FONT_SMALL,ETextAlignment::CENTER,Colors::WHITE,text,pos.w-6);
++ }
++ void setAvailable(bool value){available=value;label->setColor(value?Colors::WHITE:ColorRGBA(130,130,130,255));}
++ void clickPressed(const Point &) override{if(available && action){auto run=action;run();}}
++ void showAll(Canvas & to) override
++ {
++  to.drawColorBlended(Rect(pos.x+3,pos.y,pos.w-6,pos.h),ColorRGBA(14,17,22,220));
++  to.drawColorBlended(Rect(pos.x,pos.y+3,pos.w,pos.h-6),ColorRGBA(14,17,22,220));
++  to.drawBorder(Rect(pos.x+2,pos.y+2,pos.w-4,pos.h-4),available?Colors::METALLIC_GOLD:ColorRGBA(80,80,80,255));
++  CIntObject::showAll(to);
++ }
++ void show(Canvas & to) override{showAll(to);}
++};
++class BattleQuickMenu : public CIntObject
++{
++public:
++ BattleQuickMenu(Rect rect):CIntObject(LCLICK){pos=rect+pos.topLeft();}
++ void clickPressed(const Point &) override{}
++ void showAll(Canvas & to) override{to.drawColorBlended(pos,ColorRGBA(12,15,20,242));to.drawBorder(pos,Colors::METALLIC_GOLD);CIntObject::showAll(to);}
++ void show(Canvas & to) override{showAll(to);}
++};
++}
++bool BattleWindow::mobileBattleFieldHit(const Point & p) const
++{
++ if(!mobilePanel || mobileMenuOpen || !mobileField.isInside(p))return false;
++ for(const auto & tile:mobileQuickTiles)if(tile->pos.isInside(p))return false;
++ return true;
++}
 +Point BattleWindow::mobileInputPoint(const Point & p) const
 +{
 + if(!mobilePanel)return p;
-+ if(!mobileField.isInside(p))return Point(-10000,-10000);
++ if(!mobileBattleFieldHit(p))return Point(-10000,-10000);
 + return Point(mobileSource.x+(p.x-mobileField.x)*mobileSource.w/mobileField.w,mobileSource.y+(p.y-mobileField.y)*mobileSource.h/mobileField.h);
++}
++void BattleWindow::toggleMobileMenu()
++{
++ mobileMenuOpen=!mobileMenuOpen;
++ if(mobileMenu)mobileMenu->setEnabled(mobileMenuOpen);
++ GH.windows().totalRedraw();
 +}
 +void BattleWindow::setupMobile()
 +{
@@ -4551,68 +4606,68 @@
 + if(area.w<500 || area.h<240)return;
 + OBJECT_CONSTRUCTION;
 + if(!mobilePanel)moveTo(Point(0,0));
-+ mobilePanel.reset();
++ mobileQuickTiles.clear();mobileRefreshers.clear();mobileMenu.reset();mobilePanel.reset();mobileMenuOpen=false;
 + for(auto child:children)child->disable();
-+ // The renderer/hex controller retain their original 800x556 coordinate system.
-+ // Only their presentation is fitted to the native viewport; touches map back.
-+ pos=Rect(area.x+(area.w-std::min(780,area.w))/2,area.y,std::min(780,area.w),area.h);
-+ mobileBuffer=std::make_unique<Canvas>(Point(800,556),CanvasScalingPolicy::AUTO);
-+ mobilePanel=std::make_shared<CMobilePanel>(Point(pos.w,pos.h),mobileText("Сражение","Battle"),std::vector<std::string>{},true);
-+ struct Command {const char *ru;const char *en;EShortcut key;};
-+ const std::vector<Command> commands={
-+  {"Ждать","Wait",EShortcut::BATTLE_WAIT},{"Защита","Defend",EShortcut::BATTLE_DEFEND},
-+  {"Магия","Spells",EShortcut::BATTLE_CAST_SPELL},{"Отряд","Unit",EShortcut::BATTLE_OPEN_ACTIVE_UNIT},
-+  {"Автобой","Auto",EShortcut::BATTLE_AUTOCOMBAT},{"Настройки","Options",EShortcut::GLOBAL_OPTIONS},
-+  {"Отступить","Retreat",EShortcut::BATTLE_RETREAT},{"Сдаться","Surrender",EShortcut::BATTLE_SURRENDER},
-+  {"Действие","Action",EShortcut::BATTLE_SELECT_ACTION},
-+  {"Следующий","Next",EShortcut::BATTLE_TACTICS_NEXT},{"Начать бой","Start",EShortcut::BATTLE_TACTICS_END}
++ pos=area;
++ if(!mobileBuffer)mobileBuffer=std::make_unique<Canvas>(Point(800,556),CanvasScalingPolicy::AUTO);
++ // Use all playable screen space below the browser-game toolbar, with no
++ // ornamental panel or side column. The whole original battlefield is visible.
++ mobileFieldBounds=Rect(0,48,area.w+32,area.h+32);
++ MobileImageCamera fullField(Point(800,556));fullField.overview=true;
++ auto frame=fullField.frame(mobileFieldBounds);mobileSource=frame.first;mobileField=frame.second;
++ mobilePanel=std::make_shared<CIntObject>();mobilePanel->pos=pos;
++ struct Command{const char *ru;const char *en;const char *image;EShortcut key;};
++ const std::vector<Command> primary={
++  {"Ждать","Wait","icm006",EShortcut::BATTLE_WAIT},
++  {"Защита","Defend","icm007",EShortcut::BATTLE_DEFEND},
++  {"Магия","Spells","icm005",EShortcut::BATTLE_CAST_SPELL}
 + };
-+ int rows=std::max(1,(pos.h-60)/48),columns=(int(commands.size())+rows-1)/rows;
-+ int side=std::min(pos.w*2/5,columns*108),bw=(side-8*(columns-1))/columns;
-+ int availableW=pos.w-side-36,availableH=pos.h-60;
-+ mobileFieldBounds=Rect(pos.x+12,pos.y+56,availableW,availableH);
-+ updateMobileCamera();
-+ struct CameraControl{const char * label;std::function<void()> action;};
-+ std::vector<CameraControl> camera={
-+  {"+",[this](){mobileCamera.magnify(1.25);}},
-+  {"-",[this](){mobileCamera.magnify(0.8);}},
-+  {"<",[this](){mobileCamera.pan(-88,0);}},
-+  {">",[this](){mobileCamera.pan(88,0);}},
-+  {"^",[this](){mobileCamera.pan(0,-84);}},
-+  {"v",[this](){mobileCamera.pan(0,84);}},
-+  {"Fit",[this](){mobileCamera.overview=!mobileCamera.overview;}}
++ auto addCommand=[this](CIntObject * parent,Rect rect,const Command & command,bool quick){
++  ObjectConstruction capture(parent);auto key=command.key;
++  auto tile=std::make_shared<BattleQuickTile>(rect,mobileText(command.ru,command.en),command.image,[this,key](){if(mobileMenuOpen)toggleMobileMenu();InterfaceObjectConfigurable::keyPressed(key);});
++  if(quick)mobileQuickTiles.push_back(tile);
++  mobileRefreshers.push_back([this,key,tile](){tile->setAvailable(!shortcutIsBlocked(key));});
++  return tile;
 + };
-+ // The localized label must outlive button construction.
-+ for(int i=0;i<camera.size();++i){std::string label=i==6?mobileText("Обзор","Fit"):camera[i].label;auto action=camera[i].action;
-+  mobilePanel->add<CMobileTownButton>(0,Rect(116+i*48,0,i==6?76:44,44),label,[this,action](){action();updateMobileCamera();redraw();});}
-+
-+ for(int i=0;i<commands.size();++i){auto command=commands[i];auto key=command.key;
-+  auto button=mobilePanel->add<CMobileTownButton>(0,Rect(pos.w-side-12+(i/rows)*(bw+8),56+(i%rows)*48,bw,44),mobileText(command.ru,command.en),[this,key](){InterfaceObjectConfigurable::keyPressed(key);},!shortcutIsBlocked(key));
-+  mobilePanel->refreshers.push_back([this,key,button](){button->setAvailable(!shortcutIsBlocked(key));});
++ // Wide phones have spare side margins: use those before covering any image.
++ bool side=mobileFieldBounds.x+mobileFieldBounds.w-(mobileField.x+mobileField.w)>=72;
++ for(int i=0;i<3;++i){int x=side?mobileFieldBounds.w-68:mobileField.x+mobileField.w-4*64+4+i*64;
++  int y=side?mobileFieldBounds.y+std::max(4,(mobileFieldBounds.h-4*62)/2)+i*62:mobileField.y+4;
++  addCommand(mobilePanel.get(),Rect(x-pos.x,y-pos.y,60,56),primary[i],true);
 + }
++ {ObjectConstruction capture(mobilePanel.get());int x=side?mobileFieldBounds.w-68:mobileField.x+mobileField.w-60;
++  int y=side?mobileFieldBounds.y+std::max(4,(mobileFieldBounds.h-4*62)/2)+3*62:mobileField.y+4;
++  auto more=std::make_shared<BattleQuickTile>(Rect(x-pos.x,y-pos.y,60,56),mobileText("Ещё","More"),"icm003",[this](){toggleMobileMenu();});mobileQuickTiles.push_back(more);
++ }
++ const std::vector<Command> secondary={
++  {"Отряд","Unit","",EShortcut::BATTLE_OPEN_ACTIVE_UNIT},{"Автобой","Auto","icm004",EShortcut::BATTLE_AUTOCOMBAT},
++  {"Настройки","Options","icm003",EShortcut::GLOBAL_OPTIONS},{"Отступить","Retreat","icm002",EShortcut::BATTLE_RETREAT},
++  {"Сдаться","Surrender","icm001",EShortcut::BATTLE_SURRENDER},{"Действие","Action","",EShortcut::BATTLE_SELECT_ACTION},
++  {"Следующий","Next","",EShortcut::BATTLE_TACTICS_NEXT},{"Начать бой","Start","",EShortcut::BATTLE_TACTICS_END}
++ };
++ int mw=std::min(420,mobileFieldBounds.w-24),mh=std::min(254,mobileFieldBounds.h-16);
++ {ObjectConstruction capture(mobilePanel.get());mobileMenu=std::make_shared<BattleQuickMenu>(Rect((mobileFieldBounds.w-mw)/2-pos.x,mobileFieldBounds.y+(mobileFieldBounds.h-mh)/2-pos.y,mw,mh));}
++ int tw=(mw-32)/3,th=std::min(56,(mh-62)/3);
++ for(int i=0;i<secondary.size();++i)addCommand(mobileMenu.get(),Rect(8+(i%3)*(tw+8),8+(i/3)*(th+6),tw,th),secondary[i],false);
++ {ObjectConstruction capture(mobileMenu.get());auto close=std::make_shared<BattleQuickTile>(Rect(mw-100,mh-48,92,44),mobileText("Закрыть","Close"),"",[this](){toggleMobileMenu();});mobileRefreshers.push_back([close](){close->setAvailable(true);});}
++ mobileMenu->disable();
 + owner.fieldController->enable();
-+ if(owner.attackingHero)owner.attackingHero->disable();
-+ if(owner.defendingHero)owner.defendingHero->disable();
++ if(owner.attackingHero)owner.attackingHero->disable();if(owner.defendingHero)owner.defendingHero->disable();
 +}
 +void BattleWindow::showMobile(Canvas & to)
 +{
-+ mobilePanel->resize(this,[this](){setupMobile();});
++ const auto area=CMessage::mobileScreenArea();
++ if(area.w!=pos.w || area.h!=pos.h){setupMobile();GH.windows().totalRedraw();}
 + for(auto child:children)if(child!=mobilePanel.get() && child!=owner.fieldController.get())child->disable();
-+ if(owner.attackingHero)owner.attackingHero->disable();
-+ if(owner.defendingHero)owner.defendingHero->disable();
-+ mobilePanel->show(to);
++ if(owner.attackingHero)owner.attackingHero->disable();if(owner.defendingHero)owner.defendingHero->disable();
++ to.drawColor(mobileFieldBounds,ColorRGBA(19,17,14,255));
 + static_cast<CIntObject *>(owner.fieldController.get())->show(*mobileBuffer);
 + if(settings["battle"]["showQueue"].Bool())queue->showAll(*mobileBuffer);
-+ auto active=owner.stacksController->getActiveStack();
-+ if(active && active->getPosition().isValid() && int(active->unitId())!=mobileLastUnit){mobileLastUnit=active->unitId();auto cell=owner.fieldController->hexPositionLocal(active->getPosition());mobileCamera.center=cell.center();}
-+ updateMobileCamera();
 + to.drawScaled(*mobileBuffer,mobileSource,mobileField);
-+ to.drawBorder(mobileField,Colors::METALLIC_GOLD);
++ for(auto & refresh:mobileRefreshers)refresh();
++ mobilePanel->showAll(to);
 +}
-+
 +void BattleWindow::onScreenResize(){if(mobilePanel)setupMobile();else InterfaceObjectConfigurable::onScreenResize();}
-+
-+void BattleWindow::updateMobileCamera(){auto frame=mobileCamera.frame(mobileFieldBounds);mobileSource=frame.first;mobileField=frame.second;}
 --- a/client/battle/BattleWindow.h
 +++ b/client/battle/BattleWindow.h
 @@ -10,6 +10,10 @@
@@ -4635,25 +4690,27 @@
  {
  	BattleInterface & owner;
  
-@@ -85,10 +89,24 @@
+@@ -85,10 +89,26 @@
  
  	std::shared_ptr<BattleConsole> buildBattleConsole(const JsonNode &) const;
  
-+ std::shared_ptr<CMobilePanel> mobilePanel;
++ std::shared_ptr<CIntObject> mobilePanel;
++ std::shared_ptr<CIntObject> mobileMenu;
++ std::vector<std::shared_ptr<CIntObject>> mobileQuickTiles;
++ std::vector<std::function<void()>> mobileRefreshers;
++ bool mobileMenuOpen=false;
 + std::unique_ptr<Canvas> mobileBuffer;
 + Rect mobileField;
 + Rect mobileSource;
 + Rect mobileFieldBounds;
-+ MobileImageCamera mobileCamera{Point(800,556)};
-+ int mobileLastUnit=-1;
-+ void updateMobileCamera();
++ void toggleMobileMenu();
 + void showMobile(Canvas &);
  	bool onlyOnePlayerHuman;
  
  public:
  	BattleWindow(BattleInterface & owner );
 + bool isMobileDialog() const override{return bool(mobilePanel);}
-+ bool mobileBattleFieldHit(const Point & p) const{return mobilePanel && mobileField.isInside(p);}
++ bool mobileBattleFieldHit(const Point & p) const;
 + Point mobileInputPoint(const Point & p) const;
 + void setupMobile();
 + void onScreenResize() override;

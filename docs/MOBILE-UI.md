@@ -265,3 +265,11 @@ Physical phone feedback showed that fitting entire images into the new layouts m
 Canvas now supports an explicit cropped source rectangle when drawing a scaled image. Battle hit testing and attack-direction origins include that crop offset. Tests check original-pixel defaults, clamped camera edges/zoom, overview proportions and the actual inverse battlefield transform, including a cropped source. On-device battle targeting, visibility and puzzle readability remain pending; no interactive browser QA is available.
 
 Camera check: `python3 tests/native/mobile-image-camera.py /path/to/patched/vcmi`.
+
+### Whole-field battle with overlay quick tiles
+
+This supersedes the cropped battlefield camera above, which the user rejected on phone. The whole original battlefield now always fits the largest available game viewport below the browser toolbar, preserving proportions. Combat has no native zoom/pan/crop controls, ornamental frame or reserved side panel. The image camera remains available only in the puzzle map.
+
+Wait, Defend and Spells use compact dark translucent tiles with original command icons, plus More for the other commands. Wide-phone side margins are used before overlaying the image; otherwise the quick tiles sit along the image's upper edge. More opens a dismissible compact command palette. Existing shortcut availability guards still apply. Tile hits and the open palette explicitly block battlefield targeting so tapping UI cannot also attack or move a unit. Back closes the palette before cancelling any other combat action.
+
+Native transform tests exercise actual tile exclusion, open-palette input blocking and field coordinate mapping. The whole-field and quick-tile layout still requires physical phone/iPad verification; interactive browser QA is unavailable.
