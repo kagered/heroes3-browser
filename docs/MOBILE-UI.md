@@ -257,3 +257,11 @@ Mobile battle uses a fitted native battlefield presentation and large side comma
 The shipyard uses the original boat preview, actual resource costs, affordability and original build callback with larger native controls. The puzzle map uses the exact original map and faction masks/fade state rendered to a fitted image with a large Close button; undiscovered pieces remain masked. Desktop paths remain unchanged. Mobile panel resize requests now check that their owner is the top window before scheduling a rebuild.
 
 `python3 tests/native/mobile-battle-input.py /path/to/patched/vcmi` checks the actual native inverse transform at every usable hex center for phone/tablet sizes, outside-field rejection and the desktop identity path. Public checks and the web build cover integration; interactive browser QA is unavailable and physical-device verification remains pending.
+
+### Readable native image cameras
+
+Physical phone feedback showed that fitting entire images into the new layouts made the battlefield and Grail cross too small. Both views now default to an original-pixel camera rather than fitting the whole source. Battle recenters on a newly active stack; camera arrows pan the view, +/- adjust native magnification and Fit toggles a proportional whole-field overview. Puzzle view defaults to the Grail-centered original map region with pan/zoom, Fit and Center controls. No browser/page zoom is used. Original puzzle masks still apply.
+
+Canvas now supports an explicit cropped source rectangle when drawing a scaled image. Battle hit testing and attack-direction origins include that crop offset. Tests check original-pixel defaults, clamped camera edges/zoom, overview proportions and the actual inverse battlefield transform, including a cropped source. On-device battle targeting, visibility and puzzle readability remain pending; no interactive browser QA is available.
+
+Camera check: `python3 tests/native/mobile-image-camera.py /path/to/patched/vcmi`.

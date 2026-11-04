@@ -4509,15 +4509,16 @@
  	windowObject->updateQueue();
 --- a/client/battle/BattleWindow.cpp
 +++ b/client/battle/BattleWindow.cpp
-@@ -9,6 +9,7 @@
+@@ -9,6 +9,8 @@
   */
  #include "StdInc.h"
  #include "BattleWindow.h"
 +#include "../windows/MobileWindow.h"
++#include "../../lib/CStack.h"
  
  #include "BattleInterface.h"
  #include "BattleInterfaceClasses.h"
-@@ -921,6 +922,7 @@
+@@ -921,6 +923,7 @@
  
  void BattleWindow::showAll(Canvas & to)
  {
@@ -4525,7 +4526,7 @@
  	CIntObject::showAll(to);
  
  	if (GH.screenDimensions().x != 800 || GH.screenDimensions().y !=600)
-@@ -929,6 +931,7 @@
+@@ -929,6 +932,7 @@
  
  void BattleWindow::show(Canvas & to)
  {
@@ -4533,7 +4534,7 @@
  	CIntObject::show(to);
  	LOCPLINT->cingconsole->show(to);
  }
-@@ -939,3 +942,60 @@
+@@ -939,3 +943,78 @@
  		logGlobal->error("Only top interface must be closed");
  	GH.windows().popWindows(1);
  }
@@ -4542,7 +4543,7 @@
 +{
 + if(!mobilePanel)return p;
 + if(!mobileField.isInside(p))return Point(-10000,-10000);
-+ return Point((p.x-mobileField.x)*800/mobileField.w,(p.y-mobileField.y)*556/mobileField.h);
++ return Point(mobileSource.x+(p.x-mobileField.x)*mobileSource.w/mobileField.w,mobileSource.y+(p.y-mobileField.y)*mobileSource.h/mobileField.h);
 +}
 +void BattleWindow::setupMobile()
 +{
@@ -4566,14 +4567,27 @@
 +  {"Действие","Action",EShortcut::BATTLE_SELECT_ACTION},
 +  {"Следующий","Next",EShortcut::BATTLE_TACTICS_NEXT},{"Начать бой","Start",EShortcut::BATTLE_TACTICS_END}
 + };
-+ int rows=std::max(1,(pos.h-40)/48),columns=(int(commands.size())+rows-1)/rows;
++ int rows=std::max(1,(pos.h-60)/48),columns=(int(commands.size())+rows-1)/rows;
 + int side=std::min(pos.w*2/5,columns*108),bw=(side-8*(columns-1))/columns;
-+ int availableW=pos.w-side-36,availableH=pos.h-40;
-+ double scale=std::min(double(availableW)/800,double(availableH)/556);
-+ int width=800*scale,height=556*scale;
-+ mobileField=Rect(pos.x+12+(availableW-width)/2,pos.y+36+(availableH-height)/2,width,height);
++ int availableW=pos.w-side-36,availableH=pos.h-60;
++ mobileFieldBounds=Rect(pos.x+12,pos.y+56,availableW,availableH);
++ updateMobileCamera();
++ struct CameraControl{const char * label;std::function<void()> action;};
++ std::vector<CameraControl> camera={
++  {"+",[this](){mobileCamera.magnify(1.25);}},
++  {"-",[this](){mobileCamera.magnify(0.8);}},
++  {"<",[this](){mobileCamera.pan(-88,0);}},
++  {">",[this](){mobileCamera.pan(88,0);}},
++  {"^",[this](){mobileCamera.pan(0,-84);}},
++  {"v",[this](){mobileCamera.pan(0,84);}},
++  {"Fit",[this](){mobileCamera.overview=!mobileCamera.overview;}}
++ };
++ // The localized label must outlive button construction.
++ for(int i=0;i<camera.size();++i){std::string label=i==6?mobileText("Обзор","Fit"):camera[i].label;auto action=camera[i].action;
++  mobilePanel->add<CMobileTownButton>(0,Rect(116+i*48,0,i==6?76:44,44),label,[this,action](){action();updateMobileCamera();redraw();});}
++
 + for(int i=0;i<commands.size();++i){auto command=commands[i];auto key=command.key;
-+  auto button=mobilePanel->add<CMobileTownButton>(0,Rect(pos.w-side-12+(i/rows)*(bw+8),36+(i%rows)*48,bw,44),mobileText(command.ru,command.en),[this,key](){InterfaceObjectConfigurable::keyPressed(key);},!shortcutIsBlocked(key));
++  auto button=mobilePanel->add<CMobileTownButton>(0,Rect(pos.w-side-12+(i/rows)*(bw+8),56+(i%rows)*48,bw,44),mobileText(command.ru,command.en),[this,key](){InterfaceObjectConfigurable::keyPressed(key);},!shortcutIsBlocked(key));
 +  mobilePanel->refreshers.push_back([this,key,button](){button->setAvailable(!shortcutIsBlocked(key));});
 + }
 + owner.fieldController->enable();
@@ -4589,24 +4603,30 @@
 + mobilePanel->show(to);
 + static_cast<CIntObject *>(owner.fieldController.get())->show(*mobileBuffer);
 + if(settings["battle"]["showQueue"].Bool())queue->showAll(*mobileBuffer);
-+ to.drawScaled(*mobileBuffer,mobileField.topLeft(),mobileField.dimensions());
++ auto active=owner.stacksController->getActiveStack();
++ if(active && active->getPosition().isValid() && int(active->unitId())!=mobileLastUnit){mobileLastUnit=active->unitId();auto cell=owner.fieldController->hexPositionLocal(active->getPosition());mobileCamera.center=cell.center();}
++ updateMobileCamera();
++ to.drawScaled(*mobileBuffer,mobileSource,mobileField);
 + to.drawBorder(mobileField,Colors::METALLIC_GOLD);
 +}
 +
 +void BattleWindow::onScreenResize(){if(mobilePanel)setupMobile();else InterfaceObjectConfigurable::onScreenResize();}
++
++void BattleWindow::updateMobileCamera(){auto frame=mobileCamera.frame(mobileFieldBounds);mobileSource=frame.first;mobileField=frame.second;}
 --- a/client/battle/BattleWindow.h
 +++ b/client/battle/BattleWindow.h
-@@ -10,6 +10,9 @@
+@@ -10,6 +10,10 @@
  #pragma once
  
  #include "../gui/CIntObject.h"
 +#include "../windows/CMessage.h"
++#include "../windows/MobileImageView.h"
 +class CMobilePanel;
 +class Canvas;
  #include "../gui/InterfaceObjectConfigurable.h"
  #include "../../lib/battle/CBattleInfoCallback.h"
  #include "../../lib/battle/PossiblePlayerBattleAction.h"
-@@ -30,7 +33,7 @@
+@@ -30,7 +34,7 @@
  class QuickSpellPanel;
  
  /// GUI object that handles functionality of panel at the bottom of combat screen
@@ -4615,13 +4635,18 @@
  {
  	BattleInterface & owner;
  
-@@ -85,10 +88,19 @@
+@@ -85,10 +89,24 @@
  
  	std::shared_ptr<BattleConsole> buildBattleConsole(const JsonNode &) const;
  
 + std::shared_ptr<CMobilePanel> mobilePanel;
 + std::unique_ptr<Canvas> mobileBuffer;
 + Rect mobileField;
++ Rect mobileSource;
++ Rect mobileFieldBounds;
++ MobileImageCamera mobileCamera{Point(800,556)};
++ int mobileLastUnit=-1;
++ void updateMobileCamera();
 + void showMobile(Canvas &);
  	bool onlyOnePlayerHuman;
  
@@ -4637,16 +4662,17 @@
  	void close();
 --- a/client/windows/CPuzzleWindow.cpp
 +++ b/client/windows/CPuzzleWindow.cpp
-@@ -9,6 +9,8 @@
+@@ -9,6 +9,9 @@
   */
  #include "StdInc.h"
  #include "CPuzzleWindow.h"
 +#include "MobileWindow.h"
++#include "MobileImageView.h"
 +#include "../render/Canvas.h"
  
  #include "../CGameInfo.h"
  #include "../CPlayerInterface.h"
-@@ -68,10 +70,12 @@
+@@ -68,10 +71,12 @@
  			visiblePieces.push_back(piece);
  		}
  	}
@@ -4659,7 +4685,7 @@
  	CWindowObject::showAll(to);
  }
  
-@@ -90,5 +94,34 @@
+@@ -90,5 +95,43 @@
  			piece->setAlpha(currentAlpha);
  		currentAlpha -= animSpeed;
  	}
@@ -4673,9 +4699,11 @@
 + std::function<void(Canvas &)> paint;
 + Canvas buffer;
 +public:
-+ MobilePuzzlePicture(Rect rect,std::function<void(Canvas &)> paint):paint(paint),buffer(Point(591,544),CanvasScalingPolicy::AUTO){pos=rect+pos.topLeft();}
-+ void showAll(Canvas & to) override{paint(buffer);to.drawScaled(buffer,pos.topLeft(),Point(pos.w,pos.h));to.drawBorder(pos,Colors::METALLIC_GOLD);}
++ MobileImageCamera camera{Point(591,544)};
++ MobilePuzzlePicture(Rect rect,std::function<void(Canvas &)> paint):CIntObject(GESTURE),paint(paint),buffer(Point(591,544),CanvasScalingPolicy::AUTO){pos=rect+pos.topLeft();}
++ void showAll(Canvas & to) override{paint(buffer);auto frame=camera.frame(pos);to.drawScaled(buffer,frame.first,frame.second);to.drawBorder(pos,Colors::METALLIC_GOLD);}
 + void show(Canvas & to) override{showAll(to);}
++ void gesturePanning(const Point &,const Point &,const Point & delta) override{camera.pan(-delta.x,-delta.y);redraw();}
 +};
 +}
 +void CPuzzleWindow::setupMobile()
@@ -4684,13 +4712,20 @@
 + if(prepareMobileWindow(*this,mobilePanel).w==0)return;
 + mobilePanel=std::make_shared<CMobilePanel>(Point(pos.w,pos.h),mobileText("Карта-загадка","Puzzle map"),std::vector<std::string>{});
 + int availableW=pos.w-176,availableH=pos.h-44;
-+ double scale=std::min(double(availableW)/591,double(availableH)/544);
-+ int width=int(591*scale),height=int(544*scale);
-+ mobilePanel->add<MobilePuzzlePicture>(0,Rect(12+(availableW-width)/2,36,width,height),[this](Canvas & to){
++ auto picture=mobilePanel->add<MobilePuzzlePicture>(0,Rect(12,36,availableW,availableH),[this](Canvas & to){
 +  // Translate the original map/masks into the same 591x544 source image.
 +  Point shift=-mapView->pos.topLeft();
 +  mapView->moveBy(shift);mapView->showAll(to);mapView->moveBy(-shift);
 +  for(const auto & group:{visiblePieces,piecesToRemove})for(auto & piece:group){piece->moveBy(shift);piece->showAll(to);piece->moveBy(-shift);}
++ });
++ const std::vector<std::string> labels={"+","-","<",">","^","v",mobileText("Обзор","Fit"),mobileText("Центр","Center")};
++ for(int i=0;i<labels.size();++i)mobilePanel->add<CMobileTownButton>(0,Rect(pos.w-152+(i%3)*48,36+(i/3)*48,44,44),labels[i],[picture,i](){
++  if(i==0)picture->camera.magnify(1.25);if(i==1)picture->camera.magnify(0.8);
++  if(i==2)picture->camera.pan(-64,0);if(i==3)picture->camera.pan(64,0);
++  if(i==4)picture->camera.pan(0,-64);if(i==5)picture->camera.pan(0,64);
++  if(i==6)picture->camera.overview=!picture->camera.overview;
++  if(i==7){picture->camera.center=Point(591/2,544/2);picture->camera.overview=false;}
++  picture->redraw();
 + });
 + mobilePanel->add<CMobileTownButton>(0,Rect(pos.w-152,pos.h-52,140,44),mobileText("Закрыть","Close"),[this](){close();});
 +}
@@ -4728,3 +4763,54 @@
  	void showAll(Canvas & to) override;
  	void show(Canvas & to) override;
  
+--- a/client/render/Canvas.cpp
++++ b/client/render/Canvas.cpp
+@@ -248,3 +248,10 @@
+ {
+ 	CSDL_Ext::setClipRect(surf, oldRect);
+ }
++
++void Canvas::drawScaled(const Canvas & image,const Rect & source,const Rect & target)
++{
++ SDL_Rect from=CSDL_Ext::toSDL(source*image.getScalingFactor());
++ SDL_Rect dest=CSDL_Ext::toSDL(Rect(transformPos(target.topLeft()),transformSize(target.dimensions())));
++ SDL_BlitScaled(image.surface,&from,surface,&dest);
++}
+--- a/client/render/Canvas.h
++++ b/client/render/Canvas.h
+@@ -90,6 +90,7 @@
+ 
+ 	/// renders another canvas onto this canvas with scaling
+ 	void drawScaled(const Canvas &image, const Point & pos, const Point & targetSize);
++ void drawScaled(const Canvas & image,const Rect & source,const Rect & target);
+ 
+ 	/// renders single pixels with specified color
+ 	void drawPoint(const Point & dest, const ColorRGBA & color);
+--- /dev/null
++++ b/client/windows/MobileImageView.h
+@@ -0,0 +1,25 @@
++#pragma once
++#include "../../lib/Rect.h"
++#include <algorithm>
++#include <cmath>
++#include <utility>
++
++// A native image camera. Fill mode keeps original pixel size (or larger);
++// overview fits the whole source with preserved proportions.
++struct MobileImageCamera
++{
++ Point size;
++ Point center;
++ double zoom=1.0;
++ bool overview=false;
++ explicit MobileImageCamera(Point size):size(size),center(size.x/2,size.y/2){}
++ std::pair<Rect,Rect> frame(const Rect & bounds) const
++ {
++  if(overview){double scale=std::min(double(bounds.w)/size.x,double(bounds.h)/size.y);int w=std::max(1,int(size.x*scale)),h=std::max(1,int(size.y*scale));return {Rect(0,0,size.x,size.y),Rect(bounds.x+(bounds.w-w)/2,bounds.y+(bounds.h-h)/2,w,h)};}
++  double scale=std::max({zoom,double(bounds.w)/size.x,double(bounds.h)/size.y});
++  int w=std::clamp(int(bounds.w/scale),1,size.x),h=std::clamp(int(bounds.h/scale),1,size.y);
++  return {Rect(std::clamp(center.x-w/2,0,size.x-w),std::clamp(center.y-h/2,0,size.y-h),w,h),bounds};
++ }
++ void pan(int x,int y){overview=false;center=Point(std::clamp(center.x+x,0,size.x),std::clamp(center.y+y,0,size.y));}
++ void magnify(double factor){overview=false;zoom=std::clamp(zoom*factor,1.0,3.0);}
++};
