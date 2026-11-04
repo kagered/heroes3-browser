@@ -222,3 +222,10 @@ Completion checkpoints are retained in session storage and copied into the launc
 Completion checkpoints persist in localStorage across closing and reopening a frozen tab. The launch log prints the previous attempt with timestamps. A new confirmed Grail placement resets the trace; only the latest 24 generic phase labels are retained. Checkpoints cover Grail updates, terminal packets, dialog acknowledgement, window cleanup and score-screen construction. This diagnostic update still requires an iPad reproduction; the freeze is not yet confirmed fixed.
 
 The iPad trace reached `result screen opened` after score calculation and title activation. First-frame checkpoints now distinguish callback cleanup, the SDL event queue, interface/timer/input updates, texture upload, deferred window destruction and presentation. These checkpoints are recorded once and stop after the first result frame is presented; they are inactive during normal gameplay. This narrows the investigation but does not establish the cause of the freeze.
+
+### Finished-session window lifetime
+
+The physical iPad trace reached `disposing previous game windows` after the result interface updated and its texture uploaded, but never reached the following disposal checkpoint. The mobile terminal transition now deactivates and removes the completed game's windows and retains their ownership until browser teardown, alongside the already retained client/server. Ordinary menus and result dialogs keep normal per-frame disposal. This applies only to the single-player non-campaign mobile completion path; desktop/campaign paths are unchanged. The result flow returns through browser navigation before any new game can start in this runtime, so retired windows are kept for one completed session only. This avoids the observed blocking disposal phase; a physical iPad replay is still required to confirm the end-to-end outcome.
+
+Ownership regression check against the actual patched WindowHandler methods:
+`python3 tests/native/window-retirement.py /path/to/patched/vcmi`

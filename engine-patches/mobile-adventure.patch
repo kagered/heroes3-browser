@@ -3616,15 +3616,15 @@
 +#ifdef VCMI_HTML5_BUILD
 + MAIN_THREAD_EM_ASM({if(Module.mobileAdventureUI && Module.print)Module.print('Mobile scenario end: clearing game windows');});
 +#endif
-+    GH.windows().popWindows(GH.windows().count());
++    GH.windows().retireGameWindowsForBrowserTeardown();
 +
 +#ifdef VCMI_HTML5_BUILD
-+ MAIN_THREAD_EM_ASM({if(Module.mobileAdventureUI && Module.print)Module.print('Mobile scenario end: game windows cleared; releasing map');});
++ MAIN_THREAD_EM_ASM({if(Module.mobileAdventureUI && Module.print)Module.print('Mobile scenario end: game windows retired until browser teardown; releasing map handle');});
 +#endif
 +    adventureInt.reset();
 +
 +#ifdef VCMI_HTML5_BUILD
-+ MAIN_THREAD_EM_ASM({if(Module.mobileAdventureUI && Module.print)Module.print('Mobile scenario end: map released; preparing scores');});
++ MAIN_THREAD_EM_ASM({if(Module.mobileAdventureUI && Module.print)Module.print('Mobile scenario end: map handle released; preparing scores');});
 +#endif
 +
 +    CSH->showHighScoresAndEndGameplay(player,victory,statistic);
@@ -3736,3 +3736,47 @@
 +#else
 +inline void mobileCompletionCheckpoint(const char *) {}
 +#endif
+--- a/client/gui/WindowHandler.cpp
++++ b/client/gui/WindowHandler.cpp
+@@ -80,6 +80,17 @@
+ 		totalRedraw();
+ 	}
+ 	GH.fakeMouseMove();
++}
++
++void WindowHandler::retireGameWindowsForBrowserTeardown()
++{
++	// The browser never starts another game in this runtime after completion.
++	// Move popped windows out of per-frame disposal before publishing the results.
++	// In particular, do not run game-window destructors from renderFrame while
++	// the completed client and its callbacks are intentionally still alive.
++	assert(retiredGameWindows.empty());
++	popWindows(count());
++	retiredGameWindows.swap(disposed);
+ }
+ 
+ std::shared_ptr<IShowActivatable> WindowHandler::topWindowImpl() const
+--- a/client/gui/WindowHandler.h
++++ b/client/gui/WindowHandler.h
+@@ -19,6 +19,10 @@
+ 
+ 	/// Temporary list of recently popped windows
+ 	std::vector<std::shared_ptr<IShowActivatable>> disposed;
++
++	// A completed browser session is torn down by navigation after its result screens.
++	// Keep its deactivated windows alive with the client until that teardown.
++	std::vector<std::shared_ptr<IShowActivatable>> retiredGameWindows;
+ 
+ 	bool totalRedrawRequested = false;
+ 
+@@ -50,6 +54,10 @@
+ 
+ 	/// pops one or more windows - deactivates top, deletes and removes given number of windows, activates new front
+ 	void popWindows(int howMany);
++
++	/// Deactivate and remove a finished browser game's windows, retaining ownership
++	/// until browser teardown. Must only be used by the terminal result transition.
++	void retireGameWindowsForBrowserTeardown();
+ 
+ 	/// returns true if current top window is a right-click popup
+ 	bool isTopWindowPopup() const;
