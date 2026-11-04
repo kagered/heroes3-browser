@@ -245,3 +245,7 @@ The result duration is now explicitly labeled `Дней в игре` / `In-game 
 Full-page result, statistics and high-score panels repaint the whole game surface with the original dialog texture before drawing their content, including outside-panel margins. This clears stale borders left in the backing surface after viewport/layout changes. Small dialogs still preserve their underlying screen.
 
 The mobile high-score list now uses readable two-line rows with player, map/campaign, points and days; pagination, scenario/campaign selection, current-result highlighting and Close are native touch controls. Empty legacy placeholder records are omitted. Reset keeps its original confirmation and persistence behavior. Desktop high scores remain unchanged. Web build and repository checks cover compilation/integration; physical iPad layout verification remains pending.
+
+### Loading-screen border repaint
+
+The remaining duplicate border was observed behind the original loading illustration. Mobile CLoadingScreen now repaints the complete game surface with the existing dialog texture before drawing the original loading artwork, progress blocks and border. The backdrop is excluded from automatic child rendering so it cannot cover the illustration, and its bounds follow the current screen size. Desktop loading keeps its existing drawing path. Physical iPad verification remains pending.

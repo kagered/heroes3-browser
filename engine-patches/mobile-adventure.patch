@@ -3511,6 +3511,38 @@
  	// Handles mouse and key input
  	GH.handleEvents();
  	GH.windows().simpleRedraw();
+@@ -719,6 +729,13 @@
+ 	: CWindowObject(BORDERED, background)
+ {
+ 	OBJECT_CONSTRUCTION;
++
++ if(CMessage::isMobileSession())
++ {
++  mobileBackdrop=std::make_shared<CFilledTexture>(ImagePath::builtin("DIBOXBCK"),Rect(-pos.x,-pos.y,GH.screenDimensions().x,GH.screenDimensions().y));
++  // It is drawn explicitly before the loading illustration, not as its last child.
++  mobileBackdrop->disable();
++ }
+ 
+ 	addUsedEvents(TIME);
+ 
+@@ -789,3 +806,17 @@
+ 	
+ 	return fname;
+ }
++
++void CLoadingScreen::showAll(Canvas & to)
++{
++ if(mobileBackdrop)
++ {
++  mobileBackdrop->pos=Rect(0,0,GH.screenDimensions().x,GH.screenDimensions().y);
++  mobileBackdrop->showAll(to);
++ }
++ CWindowObject::showAll(to);
++}
++void CLoadingScreen::show(Canvas & to)
++{
++ if(mobileBackdrop)showAll(to);else CWindowObject::show(to);
++}
 --- a/client/CServerHandler.cpp
 +++ b/client/CServerHandler.cpp
 @@ -8,8 +8,12 @@
@@ -4341,3 +4373,22 @@
 + layout.push_back(std::make_shared<CLabel>(pos.w/2,pos.h-22,FONT_MEDIUM,ETextAlignment::CENTER,Colors::WHITE,std::to_string(mobileRow+1)+" / "+std::to_string(pages)));
 + layout.push_back(std::make_shared<CMobileTownButton>(Rect(pos.w-120,pos.h-42,120,40),mobileText("Далее","Next"),[this](){queueMobile(mobileRow+1,mobilePlayer);},mobileRow+1<pages));
 +}
+--- a/client/mainmenu/CMainMenu.h
++++ b/client/mainmenu/CMainMenu.h
+@@ -192,6 +192,7 @@
+ class CLoadingScreen : virtual public CWindowObject, virtual public Load::Progress
+ {
+ 	std::vector<std::shared_ptr<CAnimImage>> progressBlocks;
++ std::shared_ptr<CFilledTexture> mobileBackdrop;
+ 	
+ 	ImagePath getBackground();
+ 
+@@ -201,6 +202,8 @@
+ 	~CLoadingScreen();
+ 
+ 	void tick(uint32_t msPassed) override;
++ void show(Canvas & to) override;
++ void showAll(Canvas & to) override;
+ };
+ 
+ extern std::shared_ptr<CMainMenu> CMM;
