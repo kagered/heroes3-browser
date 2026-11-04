@@ -249,3 +249,11 @@ The mobile high-score list now uses readable two-line rows with player, map/camp
 ### Loading-screen border repaint
 
 The remaining duplicate border was observed behind the original loading illustration. Mobile CLoadingScreen now repaints the complete game surface with the existing dialog texture before drawing the original loading artwork, progress blocks and border. The backdrop is excluded from automatic child rendering so it cannot cover the illustration, and its bounds follow the current screen size. Desktop loading keeps its existing drawing path. Physical iPad verification remains pending.
+
+### Mobile battlefield, shipyard and puzzle map
+
+Mobile battle uses a fitted native battlefield presentation and large side commands (Wait, Defend, Spells, Unit, Auto, Options, Retreat/Surrender, alternate action and tactics). The original 800x556 battlefield/hex simulation is retained and rendered into a viewport-owned buffer; touch hit tests and attack-direction origins use the same inverse transform. All hexes and the original queue remain visible without browser/page zoom or nonuniform stretching. Command availability and execution use the engine's existing shortcut guards. Native controller ticks still drive stacks, obstacles and projectiles. Viewport changes rebuild the presentation, keeping original combat coordinates. This is an initial mobile battle layout; real-device combat, siege, tactics and spell interactions still require checking.
+
+The shipyard uses the original boat preview, actual resource costs, affordability and original build callback with larger native controls. The puzzle map uses the exact original map and faction masks/fade state rendered to a fitted image with a large Close button; undiscovered pieces remain masked. Desktop paths remain unchanged. Mobile panel resize requests now check that their owner is the top window before scheduling a rebuild.
+
+`python3 tests/native/mobile-battle-input.py /path/to/patched/vcmi` checks the actual native inverse transform at every usable hex center for phone/tablet sizes, outside-field rejection and the desktop identity path. Public checks and the web build cover integration; interactive browser QA is unavailable and physical-device verification remains pending.

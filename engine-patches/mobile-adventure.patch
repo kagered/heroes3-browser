@@ -645,7 +645,29 @@
  	CTavernWindow(const CGObjectInstance * TavernObj, const std::function<void()> & onWindowClosed);
  
  	void close() override;
-@@ -488,7 +542,7 @@
+@@ -303,7 +357,7 @@
+ };
+ 
+ /// Here you can buy ships
+-class CShipyardWindow : public CStatusbarWindow
++class CShipyardWindow : public CStatusbarWindow, public IMobileWindow
+ {
+ 	std::shared_ptr<CPicture> bgWater;
+ 	std::shared_ptr<CShowableAnim> bgShip;
+@@ -321,6 +375,12 @@
+ 
+ public:
+ 	CShipyardWindow(const TResources & cost, int state, BoatId boatType, const std::function<void()> & onBuy);
++ std::shared_ptr<CMobilePanel> mobilePanel;
++ void setupMobile();
++ bool isMobileDialog() const override{return bool(mobilePanel);}
++ void show(Canvas &) override;
++ void showAll(Canvas &) override;
++ void keyPressed(EShortcut) override;
+ };
+ 
+ /// Creature transformer window
+@@ -488,7 +548,7 @@
  	bool holdsGarrison(const CArmedInstance * army) override;
  };
  
@@ -654,7 +676,7 @@
  {
  	const CGObjectInstance * owner;
  
-@@ -508,7 +562,16 @@
+@@ -508,7 +568,16 @@
  	std::vector<std::shared_ptr<CLabel>> primSkillValues;
  	std::vector<std::shared_ptr<CAnimImage>> bestCreatures;
  	std::vector<std::shared_ptr<CLabel>> personalities;
@@ -964,7 +986,15 @@
  }
  
  void CTavernWindow::addInvite()
-@@ -1464,6 +1626,74 @@
+@@ -781,6 +943,7 @@
+ 
+ 	title = std::make_shared<CLabel>(164, 27,  FONT_BIG, ETextAlignment::CENTER, Colors::YELLOW, CGI->generaltexth->jktexts[13]);
+ 	costLabel = std::make_shared<CLabel>(164, 220, FONT_MEDIUM, ETextAlignment::CENTER, Colors::WHITE, CGI->generaltexth->jktexts[14]);
++ setupMobile();
+ }
+ 
+ void CTransformerWindow::CItem::move()
+@@ -1464,6 +1627,74 @@
  
  		counter++;
  	}
@@ -1039,7 +1069,7 @@
  }
  
  CObjectListWindow::CItem::CItem(CObjectListWindow * _parent, size_t _id, std::string _text)
-@@ -1739,3 +1969,26 @@
+@@ -1739,3 +1970,45 @@
  {
  	exit(true);
  }
@@ -1066,6 +1096,25 @@
 + mobilePanel->add<CMobileTownButton>(0,Rect(28+2*bw,pos.h-52,bw,44),mobileText("Закрыть","Close"),[this](){close();});
 + mobilePanel->refreshers.push_back([this,hire](){hire->setAvailable(selected>=0 && !recruit->isBlocked());});
 +}
++
++void CShipyardWindow::setupMobile()
++{
++ OBJECT_CONSTRUCTION;
++ if(prepareMobileWindow(*this,mobilePanel,320).w==0)return;
++ mobilePanel=std::make_shared<CMobilePanel>(Point(pos.w,pos.h),mobileText("Построить корабль","Build a ship"),std::vector<std::string>{});
++ mobilePanel->adopt(0,bgWater,Point(24,52));mobilePanel->adopt(0,bgShip,Point(44,78));
++ int x=std::max(180,pos.w/2);
++ mobilePanel->add<CLabel>(0,x,54,FONT_MEDIUM,ETextAlignment::TOPLEFT,Colors::YELLOW,mobileText("Стоимость","Resource cost"),pos.w-x-16);
++ mobilePanel->adopt(0,goldPic,Point(x,90));mobilePanel->adopt(0,woodPic,Point(x+110,90));
++ mobilePanel->add<CLabel>(0,x+24,142,FONT_MEDIUM,ETextAlignment::CENTER,Colors::WHITE,goldCost->getText());
++ mobilePanel->add<CLabel>(0,x+134,142,FONT_MEDIUM,ETextAlignment::CENTER,Colors::WHITE,woodCost->getText());
++ int width=(pos.w-32)/2;
++ mobilePanel->add<CMobileTownButton>(0,Rect(12,pos.h-52,width,44),mobileText("Отмена","Cancel"),[this](){close();});
++ mobilePanel->add<CMobileTownButton>(0,Rect(20+width,pos.h-52,width,44),mobileText("Построить","Build"),[this](){if(!build->isBlocked()){build->clickPressed(build->pos.center());build->clickReleased(build->pos.center());}},!build->isBlocked());
++}
++void CShipyardWindow::show(Canvas & to){if(mobilePanel){mobilePanel->resize(this,[this](){setupMobile();},320);mobilePanel->show(to);}else CWindowObject::show(to);}
++void CShipyardWindow::showAll(Canvas & to){if(mobilePanel)mobilePanel->showAll(to);else CWindowObject::showAll(to);}
++void CShipyardWindow::keyPressed(EShortcut key){if(!mobilePanel)return;if(key==EShortcut::GLOBAL_CANCEL)close();else if(key==EShortcut::GLOBAL_ACCEPT && !build->isBlocked()){build->clickPressed(build->pos.center());build->clickReleased(build->pos.center());}}
 --- a/client/windows/CCastleInterface.h
 +++ b/client/windows/CCastleInterface.h
 @@ -8,6 +8,7 @@
@@ -2180,7 +2229,7 @@
  	void close(); //TODO: copypaste of WindowBase::close(), consider changing Windowbase to IWindowbase with default close() implementation and changing WindowBase inheritance to CIntObject + IWindowBase
 --- a/client/gui/InterfaceObjectConfigurable.h
 +++ b/client/gui/InterfaceObjectConfigurable.h
-@@ -37,6 +37,7 @@
+@@ -37,12 +37,14 @@
  class InterfaceObjectConfigurable: public CIntObject
  {
  public:
@@ -2188,6 +2237,13 @@
  	InterfaceObjectConfigurable(int used=0, Point offset=Point());
  	InterfaceObjectConfigurable(const JsonNode & config, int used=0, Point offset=Point());
  
+ protected:
+ 	/// Set blocked status for all buttons associated with provided shortcut
+ 	void setShortcutBlocked(EShortcut shortcut, bool isBlocked);
++ bool shortcutIsBlocked(EShortcut key) const {auto found=shortcuts.find(key);return found==shortcuts.end() || found->second.blocked;}
+ 
+ 	/// Registers provided callback to be called whenever specified shortcut is triggered
+ 	void addShortcut(EShortcut shortcut, std::function<void()> callback);
 --- a/client/widgets/Buttons.h
 +++ b/client/widgets/Buttons.h
 @@ -86,6 +86,7 @@
@@ -2372,7 +2428,7 @@
 +}
 --- /dev/null
 +++ b/client/windows/MobileWindow.h
-@@ -0,0 +1,99 @@
+@@ -0,0 +1,100 @@
 +/* Native lab layouts. GPL v2.0 or later, as the VCMI client. */
 +#pragma once
 +#include "CMessage.h"
@@ -2451,6 +2507,7 @@
 + void show(Canvas & to) override {for(auto & refresh:refreshers)refresh();CIntObject::show(to);showAll(to);}
 + void resize(const CIntObject * owner,std::function<void()> rebuild,int heightLimit=0)
 + {
++  if(owner!=GH.windows().topWindow<CIntObject>().get())return;
 +  const Rect area=CMessage::mobileDialogArea();
 +  if(*resizeQueued || area.w<=0 || (pos.w==std::min(780,area.w) && pos.h==(heightLimit?std::min(heightLimit,area.h):area.h)))return;
 +  *resizeQueued=true;
@@ -3270,6 +3327,31 @@
  
  #include "BattleInterface.h"
  #include "BattleWindow.h"
+@@ -180,18 +181,18 @@
+ 	else
+ 		hoveredHex = BattleHex::INVALID;
+ 
+-	currentAttackOriginPoint = currentPosition;
+-
+-	if (pos.isInside(initialPosition))
++	currentAttackOriginPoint = owner.windowObject->mobileInputPoint(currentPosition);
++
++	if (pos.isInside(owner.windowObject->mobileInputPoint(initialPosition)))
+ 		owner.actionsController->onHexHovered(getHoveredHex());
+ }
+ 
+ void BattleFieldController::mouseMoved(const Point & cursorPosition, const Point & lastUpdateDistance)
+ {
+ 	hoveredHex = getHexAtPosition(cursorPosition);
+-	currentAttackOriginPoint = cursorPosition;
+-
+-	if (pos.isInside(cursorPosition))
++	currentAttackOriginPoint = owner.windowObject->mobileInputPoint(cursorPosition);
++
++	if (pos.isInside(owner.windowObject->mobileInputPoint(cursorPosition)))
+ 		owner.actionsController->onHexHovered(getHoveredHex());
+ 	else
+ 		owner.actionsController->onHoverEnded();
 @@ -199,6 +200,13 @@
  
  void BattleFieldController::clickPressed(const Point & cursorPosition)
@@ -3277,14 +3359,30 @@
 + if(CMessage::isMobileSession())
 + {
 +  hoveredHex=getHexAtPosition(cursorPosition);
-+  currentAttackOriginPoint=cursorPosition;
++  currentAttackOriginPoint=owner.windowObject->mobileInputPoint(cursorPosition);
 +  if(hoveredHex!=BattleHex::INVALID)owner.actionsController->onHexHovered(hoveredHex);
 + }
 +
  	BattleHex selectedHex = getHoveredHex();
  
  	if (selectedHex != BattleHex::INVALID)
-@@ -657,7 +665,25 @@
+@@ -207,6 +215,7 @@
+ 
+ void BattleFieldController::showPopupWindow(const Point & cursorPosition)
+ {
++ if(CMessage::isMobileSession())hoveredHex=getHexAtPosition(cursorPosition);
+ 	BattleHex selectedHex = getHoveredHex();
+ 
+ 	if (selectedHex != BattleHex::INVALID)
+@@ -637,6 +646,7 @@
+ 
+ BattleHex BattleFieldController::getHexAtPosition(Point hoverPos)
+ {
++ hoverPos=owner.windowObject->mobileInputPoint(hoverPos);
+ 	if (owner.attackingHero)
+ 	{
+ 		if (owner.attackingHero->pos.isInside(hoverPos))
+@@ -657,7 +667,25 @@
  			continue;
  
  		if (isPixelInHex(hoverPos - hexPosition.topLeft()))
@@ -3311,6 +3409,13 @@
  	}
  
  	return BattleHex::INVALID;
+@@ -880,5 +908,6 @@
+ {
+ 	if (eventType == HOVER)
+ 		return true;
++	if(owner.windowObject->isMobileDialog())return owner.windowObject->mobileBattleFieldHit(position);
+ 	return CIntObject::receiveEvent(position, eventType);
+ }
 --- a/client/battle/BattleInterfaceClasses.h
 +++ b/client/battle/BattleInterfaceClasses.h
 @@ -234,6 +234,7 @@
@@ -4392,3 +4497,234 @@
  };
  
  extern std::shared_ptr<CMainMenu> CMM;
+--- a/client/battle/BattleInterface.cpp
++++ b/client/battle/BattleInterface.cpp
+@@ -97,6 +97,7 @@
+ 	adventureInt->onAudioPaused();
+ 	ongoingAnimationsState.setBusy();
+ 
++	windowObject->setupMobile();
+ 	GH.windows().pushWindow(windowObject);
+ 	windowObject->blockUI(true);
+ 	windowObject->updateQueue();
+--- a/client/battle/BattleWindow.cpp
++++ b/client/battle/BattleWindow.cpp
+@@ -9,6 +9,7 @@
+  */
+ #include "StdInc.h"
+ #include "BattleWindow.h"
++#include "../windows/MobileWindow.h"
+ 
+ #include "BattleInterface.h"
+ #include "BattleInterfaceClasses.h"
+@@ -921,6 +922,7 @@
+ 
+ void BattleWindow::showAll(Canvas & to)
+ {
++ if(mobilePanel){showMobile(to);return;}
+ 	CIntObject::showAll(to);
+ 
+ 	if (GH.screenDimensions().x != 800 || GH.screenDimensions().y !=600)
+@@ -929,6 +931,7 @@
+ 
+ void BattleWindow::show(Canvas & to)
+ {
++ if(mobilePanel){showMobile(to);return;}
+ 	CIntObject::show(to);
+ 	LOCPLINT->cingconsole->show(to);
+ }
+@@ -939,3 +942,60 @@
+ 		logGlobal->error("Only top interface must be closed");
+ 	GH.windows().popWindows(1);
+ }
++
++Point BattleWindow::mobileInputPoint(const Point & p) const
++{
++ if(!mobilePanel)return p;
++ if(!mobileField.isInside(p))return Point(-10000,-10000);
++ return Point((p.x-mobileField.x)*800/mobileField.w,(p.y-mobileField.y)*556/mobileField.h);
++}
++void BattleWindow::setupMobile()
++{
++ const Rect area=CMessage::mobileScreenArea();
++ if(area.w<500 || area.h<240)return;
++ OBJECT_CONSTRUCTION;
++ if(!mobilePanel)moveTo(Point(0,0));
++ mobilePanel.reset();
++ for(auto child:children)child->disable();
++ // The renderer/hex controller retain their original 800x556 coordinate system.
++ // Only their presentation is fitted to the native viewport; touches map back.
++ pos=Rect(area.x+(area.w-std::min(780,area.w))/2,area.y,std::min(780,area.w),area.h);
++ mobileBuffer=std::make_unique<Canvas>(Point(800,556),CanvasScalingPolicy::AUTO);
++ mobilePanel=std::make_shared<CMobilePanel>(Point(pos.w,pos.h),mobileText("Сражение","Battle"),std::vector<std::string>{},true);
++ struct Command {const char *ru;const char *en;EShortcut key;};
++ const std::vector<Command> commands={
++  {"Ждать","Wait",EShortcut::BATTLE_WAIT},{"Защита","Defend",EShortcut::BATTLE_DEFEND},
++  {"Магия","Spells",EShortcut::BATTLE_CAST_SPELL},{"Отряд","Unit",EShortcut::BATTLE_OPEN_ACTIVE_UNIT},
++  {"Автобой","Auto",EShortcut::BATTLE_AUTOCOMBAT},{"Настройки","Options",EShortcut::GLOBAL_OPTIONS},
++  {"Отступить","Retreat",EShortcut::BATTLE_RETREAT},{"Сдаться","Surrender",EShortcut::BATTLE_SURRENDER},
++  {"Действие","Action",EShortcut::BATTLE_SELECT_ACTION},
++  {"Следующий","Next",EShortcut::BATTLE_TACTICS_NEXT},{"Начать бой","Start",EShortcut::BATTLE_TACTICS_END}
++ };
++ int rows=std::max(1,(pos.h-40)/48),columns=(int(commands.size())+rows-1)/rows;
++ int side=std::min(pos.w*2/5,columns*108),bw=(side-8*(columns-1))/columns;
++ int availableW=pos.w-side-36,availableH=pos.h-40;
++ double scale=std::min(double(availableW)/800,double(availableH)/556);
++ int width=800*scale,height=556*scale;
++ mobileField=Rect(pos.x+12+(availableW-width)/2,pos.y+36+(availableH-height)/2,width,height);
++ for(int i=0;i<commands.size();++i){auto command=commands[i];auto key=command.key;
++  auto button=mobilePanel->add<CMobileTownButton>(0,Rect(pos.w-side-12+(i/rows)*(bw+8),36+(i%rows)*48,bw,44),mobileText(command.ru,command.en),[this,key](){InterfaceObjectConfigurable::keyPressed(key);},!shortcutIsBlocked(key));
++  mobilePanel->refreshers.push_back([this,key,button](){button->setAvailable(!shortcutIsBlocked(key));});
++ }
++ owner.fieldController->enable();
++ if(owner.attackingHero)owner.attackingHero->disable();
++ if(owner.defendingHero)owner.defendingHero->disable();
++}
++void BattleWindow::showMobile(Canvas & to)
++{
++ mobilePanel->resize(this,[this](){setupMobile();});
++ for(auto child:children)if(child!=mobilePanel.get() && child!=owner.fieldController.get())child->disable();
++ if(owner.attackingHero)owner.attackingHero->disable();
++ if(owner.defendingHero)owner.defendingHero->disable();
++ mobilePanel->show(to);
++ static_cast<CIntObject *>(owner.fieldController.get())->show(*mobileBuffer);
++ if(settings["battle"]["showQueue"].Bool())queue->showAll(*mobileBuffer);
++ to.drawScaled(*mobileBuffer,mobileField.topLeft(),mobileField.dimensions());
++ to.drawBorder(mobileField,Colors::METALLIC_GOLD);
++}
++
++void BattleWindow::onScreenResize(){if(mobilePanel)setupMobile();else InterfaceObjectConfigurable::onScreenResize();}
+--- a/client/battle/BattleWindow.h
++++ b/client/battle/BattleWindow.h
+@@ -10,6 +10,9 @@
+ #pragma once
+ 
+ #include "../gui/CIntObject.h"
++#include "../windows/CMessage.h"
++class CMobilePanel;
++class Canvas;
+ #include "../gui/InterfaceObjectConfigurable.h"
+ #include "../../lib/battle/CBattleInfoCallback.h"
+ #include "../../lib/battle/PossiblePlayerBattleAction.h"
+@@ -30,7 +33,7 @@
+ class QuickSpellPanel;
+ 
+ /// GUI object that handles functionality of panel at the bottom of combat screen
+-class BattleWindow : public InterfaceObjectConfigurable
++class BattleWindow : public InterfaceObjectConfigurable, public IMobileWindow
+ {
+ 	BattleInterface & owner;
+ 
+@@ -85,10 +88,19 @@
+ 
+ 	std::shared_ptr<BattleConsole> buildBattleConsole(const JsonNode &) const;
+ 
++ std::shared_ptr<CMobilePanel> mobilePanel;
++ std::unique_ptr<Canvas> mobileBuffer;
++ Rect mobileField;
++ void showMobile(Canvas &);
+ 	bool onlyOnePlayerHuman;
+ 
+ public:
+ 	BattleWindow(BattleInterface & owner );
++ bool isMobileDialog() const override{return bool(mobilePanel);}
++ bool mobileBattleFieldHit(const Point & p) const{return mobilePanel && mobileField.isInside(p);}
++ Point mobileInputPoint(const Point & p) const;
++ void setupMobile();
++ void onScreenResize() override;
+ 
+ 	/// Closes window once battle finished
+ 	void close();
+--- a/client/windows/CPuzzleWindow.cpp
++++ b/client/windows/CPuzzleWindow.cpp
+@@ -9,6 +9,8 @@
+  */
+ #include "StdInc.h"
+ #include "CPuzzleWindow.h"
++#include "MobileWindow.h"
++#include "../render/Canvas.h"
+ 
+ #include "../CGameInfo.h"
+ #include "../CPlayerInterface.h"
+@@ -68,10 +70,12 @@
+ 			visiblePieces.push_back(piece);
+ 		}
+ 	}
++ setupMobile();
+ }
+ 
+ void CPuzzleWindow::showAll(Canvas & to)
+ {
++ if(mobilePanel){mobilePanel->showAll(to);return;}
+ 	CWindowObject::showAll(to);
+ }
+ 
+@@ -90,5 +94,34 @@
+ 			piece->setAlpha(currentAlpha);
+ 		currentAlpha -= animSpeed;
+ 	}
+-	CWindowObject::show(to);
++	if(mobilePanel){mobilePanel->resize(this,[this](){setupMobile();});mobilePanel->show(to);}else CWindowObject::show(to);
+ }
++
++namespace {
++class MobilePuzzlePicture : public CIntObject
++{
++ std::function<void(Canvas &)> paint;
++ Canvas buffer;
++public:
++ MobilePuzzlePicture(Rect rect,std::function<void(Canvas &)> paint):paint(paint),buffer(Point(591,544),CanvasScalingPolicy::AUTO){pos=rect+pos.topLeft();}
++ void showAll(Canvas & to) override{paint(buffer);to.drawScaled(buffer,pos.topLeft(),Point(pos.w,pos.h));to.drawBorder(pos,Colors::METALLIC_GOLD);}
++ void show(Canvas & to) override{showAll(to);}
++};
++}
++void CPuzzleWindow::setupMobile()
++{
++ OBJECT_CONSTRUCTION;
++ if(prepareMobileWindow(*this,mobilePanel).w==0)return;
++ mobilePanel=std::make_shared<CMobilePanel>(Point(pos.w,pos.h),mobileText("Карта-загадка","Puzzle map"),std::vector<std::string>{});
++ int availableW=pos.w-176,availableH=pos.h-44;
++ double scale=std::min(double(availableW)/591,double(availableH)/544);
++ int width=int(591*scale),height=int(544*scale);
++ mobilePanel->add<MobilePuzzlePicture>(0,Rect(12+(availableW-width)/2,36,width,height),[this](Canvas & to){
++  // Translate the original map/masks into the same 591x544 source image.
++  Point shift=-mapView->pos.topLeft();
++  mapView->moveBy(shift);mapView->showAll(to);mapView->moveBy(-shift);
++  for(const auto & group:{visiblePieces,piecesToRemove})for(auto & piece:group){piece->moveBy(shift);piece->showAll(to);piece->moveBy(-shift);}
++ });
++ mobilePanel->add<CMobileTownButton>(0,Rect(pos.w-152,pos.h-52,140,44),mobileText("Закрыть","Close"),[this](){close();});
++}
++void CPuzzleWindow::keyPressed(EShortcut key){if(mobilePanel && (key==EShortcut::GLOBAL_CANCEL || key==EShortcut::GLOBAL_RETURN || key==EShortcut::GLOBAL_ACCEPT))close();}
+--- a/client/windows/CPuzzleWindow.h
++++ b/client/windows/CPuzzleWindow.h
+@@ -10,6 +10,8 @@
+ #pragma once
+ 
+ #include "CWindowObject.h"
++#include "CMessage.h"
++class CMobilePanel;
+ #include "../../lib/int3.h"
+ 
+ class CLabel;
+@@ -18,7 +20,7 @@
+ class PuzzleMapView;
+ 
+ /// Puzzle screen which gets uncovered when you visit obilisks
+-class CPuzzleWindow : public CWindowObject
++class CPuzzleWindow : public CWindowObject, public IMobileWindow
+ {
+ private:
+ 	int3 grailPos;
+@@ -31,8 +33,12 @@
+ 	std::vector<std::shared_ptr<CPicture>> piecesToRemove;
+ 	std::vector<std::shared_ptr<CPicture>> visiblePieces;
+ 	ui8 currentAlpha;
++ std::shared_ptr<CMobilePanel> mobilePanel;
++ void setupMobile();
+ 
+ public:
++ bool isMobileDialog() const override{return bool(mobilePanel);}
++ void keyPressed(EShortcut) override;
+ 	void showAll(Canvas & to) override;
+ 	void show(Canvas & to) override;
+ 
