@@ -194,3 +194,9 @@ The native mobile shell receives player-end, opponent-start and your-turn events
 ### Mobile digging action
 
 Menu → Dig (Копать) forwards action 17 to ADVENTURE_DIG_GRAIL through the existing shortcut availability mask and queued adventure dispatch. The original hero diggingStatus checks, messages and dig callback remain authoritative, including movement, occupied ground and terrain restrictions. The action is unavailable without a selected hero or behind modal windows. Tests cover Russian/English labels, availability, queue dispatch and dialog clearing. Actual iPad digging still needs physical verification.
+
+### Scenario completion and mobile exit
+
+Confirmed Grail construction retains the original callback and victory rules. For completed single scenarios/tutorials, the mobile high-score path avoids blocking endGameplay: it requests disconnection without joining workers, gives control to the main menu interface, and presents the original high-score input/result screens with the original calculation/statistics. Only when those screens return to the title menu does the browser perform tracked teardown and cached relaunch. Campaign transitions retain the original path and are not covered by this change. Actual tutorial completion still requires physical verification; Browser use is unavailable.
+
+Menu → Exit to desktop (Выход в ОС) forwards action 18 to the original quit shortcut and confirmation. After confirmation the mobile branch defers the existing quitGame callback, flushing queued save writes and returning to the site home page. Short landscape menus align their overflowing content at the top so the added action remains reachable by scrolling. Tests cover bilingual labels, availability and dispatch; desktop engine artifacts remain unchanged.

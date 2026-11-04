@@ -13,7 +13,7 @@ assert.equal(setup({coarse:true,width:390,height:844}).ui.profile().width,844,'p
 assert.equal(setup({coarse:true,query:'?mobile-map=off'}).ui.profile(),null);
 assert.equal(setup({coarse:true,manifest:false}).ui.profile(),null,'source-only export needs no experimental binaries');
 const t=setup({coarse:true});assert.equal(t.ui.profile().width,844);
-const moduleOptions={};t.ui.attach(moduleOptions,t.ui.profile());assert.equal(new Set(t.buttons.filter(b=>b.dataset.action).map(b=>b.dataset.action)).size,17);
+const moduleOptions={};t.ui.attach(moduleOptions,t.ui.profile());assert.equal(new Set(t.buttons.filter(b=>b.dataset.action).map(b=>b.dataset.action)).size,18);
 moduleOptions.mobileAdventureState(true,1|16);assert(t.classes.has('mobile-adventure-active'));assert.equal(t.buttons.find(b=>b.dataset.action===5).disabled,false);assert.equal(t.buttons.find(b=>b.dataset.action===2).disabled,true);
 for(let i=0;i<10;i++)t.ui.send(1);assert.equal(moduleOptions.mobileActions.length,4,'bounded queue');
 moduleOptions.mobileAdventureState(false,0);assert.equal(moduleOptions.mobileActions.length,0);t.ui.send(1);assert.equal(moduleOptions.mobileActions.length,0,'dialogs reject map actions');assert(!t.classes.has('mobile-adventure-active'));
@@ -134,3 +134,7 @@ const digging=setup({coarse:true});const digModule={};digging.ui.attach(digModul
 assert(digButton);assert.equal(digButton.textContent,'Dig');digModule.mobileAdventureState(true,0);assert.equal(digButton.disabled,true);digModule.mobileAdventureState(true,1<<16);assert.equal(digButton.disabled,false);digButton.onclick();assert.equal(digModule.mobileActions.at(-1),17);digModule.mobileAdventureState(false,0,true);assert.equal(digButton.disabled,true);assert.equal(digModule.mobileActions.length,0);
 const diggingRu=setup({coarse:true,language:'ru'});diggingRu.ui.attach({},diggingRu.ui.profile());assert.equal(diggingRu.buttons.find(b=>b.dataset.action===17).textContent,'Копать');
 console.log('PASS: bilingual digging action follows engine availability and clears behind dialogs');
+
+const exiting=setup({coarse:true});const exitModule={};exiting.ui.attach(exitModule,exiting.ui.profile());const exitButton=exiting.buttons.find(b=>b.dataset.action===18);assert.equal(exitButton.textContent,'Exit to desktop');exitModule.mobileAdventureState(true,0);assert.equal(exitButton.disabled,true);exitModule.mobileAdventureState(true,1<<17);assert.equal(exitButton.disabled,false);exitButton.onclick();assert.equal(exitModule.mobileActions.at(-1),18);exitModule.mobileAdventureState(false,0,true);assert.equal(exitModule.mobileActions.length,0);
+const exitRu=setup({coarse:true,language:'ru'});exitRu.ui.attach({},exitRu.ui.profile());assert.equal(exitRu.buttons.find(b=>b.dataset.action===18).textContent,'Выход в ОС');
+console.log('PASS: bilingual exit action uses original availability and queued engine confirmation');

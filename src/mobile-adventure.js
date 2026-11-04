@@ -221,7 +221,7 @@
       pausePanel.setAttribute('role','dialog');pausePanel.setAttribute('aria-modal','true');pausePanel.setAttribute('aria-label',text('Меню игры','Game menu'));
       const title=document.createElement('h2');title.textContent=text('Пауза','Game menu');pausePanel.append(title);
       const clock=document.createElement("p");clock.dataset.playTime="";clock.className="mobile-play-time";pausePanel.append(clock);
-      const pauseItems=[[0,'Продолжить игру','Resume game'],[13,'Сохранить игру','Save game'],[14,'Загрузить игру','Load game'],[16,'Сведения о сценарии','Scenario information'],[11,'Королевство','Kingdom overview'],[17,'Копать','Dig'],[6,'Настройки игры','Game settings'],[15,'В главное меню игры','Game main menu']];
+      const pauseItems=[[0,'Продолжить игру','Resume game'],[13,'Сохранить игру','Save game'],[14,'Загрузить игру','Load game'],[16,'Сведения о сценарии','Scenario information'],[11,'Королевство','Kingdom overview'],[17,'Копать','Dig'],[6,'Настройки игры','Game settings'],[15,'В главное меню игры','Game main menu'],[18,'Выход в ОС','Exit to desktop']];
       for(const [id,ru,english] of pauseItems){
         const button=document.createElement('button');button.type='button';button.textContent=en()?english:ru;
         if(id)button.dataset.action=id;

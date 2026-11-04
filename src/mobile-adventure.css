@@ -66,3 +66,5 @@
 @keyframes turn-hourglass{0%,35%{transform:rotate(0)}65%,100%{transform:rotate(180deg)}}
 @keyframes turn-arrive{from{opacity:0;translate:0 -8px}to{opacity:1;translate:0 0}}
 @media(prefers-reduced-motion:reduce){.mobile-turn-banner,.mobile-turn-hourglass{animation:none}}
+
+@media(max-height:480px){.mobile-pause-panel{align-content:start}}

@@ -122,7 +122,7 @@
 +		EShortcut::ADVENTURE_KINGDOM_OVERVIEW, EShortcut::ADVENTURE_FIRST_HERO,
 +		EShortcut::ADVENTURE_SAVE_GAME, EShortcut::ADVENTURE_LOAD_GAME,
 +		EShortcut::ADVENTURE_TO_MAIN_MENU, EShortcut::ADVENTURE_VIEW_SCENARIO,
-+        EShortcut::ADVENTURE_DIG_GRAIL
++        EShortcut::ADVENTURE_DIG_GRAIL, EShortcut::ADVENTURE_QUIT_GAME
 +	};
 +	unsigned enabled = 0;
 +	for(const auto & shortcut : shortcuts->getShortcuts())
@@ -279,6 +279,16 @@
  			CSH->endGameplay();
  			CMM->menu->switchToTab("main");
  		},
+@@ -356,6 +365,9 @@
+ 		CGI->generaltexth->allTexts[578],
+ 		[]()
+ 		{
++#ifdef VCMI_HTML5_BUILD
++   if(MAIN_THREAD_EM_ASM_INT({if(Module.mobileAdventureUI && Module.quitGame){setTimeout(()=>{void Module.quitGame();},0);return 1;}return 0;}))return;
++#endif
+ 			GH.dispatchMainThread( []()
+ 			{
+ 				handleQuit(false);
 --- a/client/windows/CMessage.h
 +++ b/client/windows/CMessage.h
 @@ -10,6 +10,7 @@
@@ -3339,13 +3349,47 @@
  	OBJECT_CONSTRUCTION;
  	backgroundAroundMenu = std::make_shared<CFilledTexture>(ImagePath::builtin("DIBOXBCK"), pos);
  }
-@@ -396,6 +400,9 @@
+@@ -396,6 +400,12 @@
  		menu->switchToTab(menu->getActiveTab());
  	}
  
 +#ifdef VCMI_HTML5_BUILD
 + if(MAIN_THREAD_EM_ASM_INT({try{const load=Module.mobileAdventureUI && sessionStorage.getItem('heroes3.mobileMenuTarget')==='load';if(load)sessionStorage.removeItem('heroes3.mobileMenuTarget');return load?1:0;}catch{return 0;}}))menu->switchToTab("load");
 +#endif
++#ifdef VCMI_HTML5_BUILD
++ if(GH.windows().isTopWindow(menu) && MAIN_THREAD_EM_ASM_INT({if(Module.mobileFinishedGame && Module.mobileReturnToMenu){Module.mobileFinishedGame=false;Module.mobileReturnToMenu();return 1;}return 0;}))return;
++#endif
  	// Handles mouse and key input
  	GH.handleEvents();
  	GH.windows().simpleRedraw();
+--- a/client/CServerHandler.cpp
++++ b/client/CServerHandler.cpp
+@@ -10,6 +10,9 @@
+ #include "StdInc.h"
+ 
+ #include "CServerHandler.h"
++#ifdef VCMI_HTML5_BUILD
++#include <emscripten.h>
++#endif
+ #include "Client.h"
+ #include "CGameInfo.h"
+ #include "ServerRunner.h"
+@@ -670,6 +673,18 @@
+ 		scenarioHighScores.parameters.push_back(param);
+ 		scenarioHighScores.isCampaign = false;
+ 
++#ifdef VCMI_HTML5_BUILD
++  if(MAIN_THREAD_EM_ASM_INT({return Module.mobileAdventureUI && Module.mobileReturnToMenu?1:0;}))
++  {
++   // Keep the completed client's score data alive until the original result screens close.
++   // Joining its workers in endGameplay can block the browser UI thread.
++   sendClientDisconnecting();
++   GH.curInt=CMM.get();CMM->enable();CMM->menu->switchToTab("main");
++   MAIN_THREAD_EM_ASM({Module.mobileFinishedGame=true;});
++   GH.windows().createAndPushWindow<CHighScoreInputScreen>(victory,scenarioHighScores,statistic);
++   return;
++  }
++#endif
+ 		endGameplay();
+ 		CMM->menu->switchToTab("main");
+ 		GH.windows().createAndPushWindow<CHighScoreInputScreen>(victory, scenarioHighScores, statistic);
