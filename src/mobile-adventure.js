@@ -101,7 +101,7 @@
     actionNotice.classList.toggle('success',success);
     noticeTimer=setTimeout(()=>{actionNotice.hidden=true;},success?4000:5000);
   }
-  let saveNameInput, saveNameDone, saveNameRect;
+  let saveNameInput, saveNameDone, saveNameRect, textFieldKind='save';
   function positionSaveNameInput() {
     if(!saveNameInput || !saveNameRect)return;
     const editing=document.activeElement===saveNameInput;
@@ -118,7 +118,7 @@
     } else Object.assign(saveNameInput.style,{left:(rect.left+x)+'px',top:(rect.top+y)+'px',width:width+'px',height:height+'px',transform:'none'});
     saveNameDone.hidden=!editing;
   }
-  function saveNameField(visible,x,y,width,height,value) {
+  function saveNameField(visible,x,y,width,height,value,kind='save') {
     if(!panel || !module)return;
     if(!visible){if(saveNameInput){saveNameInput.hidden=true;saveNameInput.blur();}return;}
     if(!saveNameInput) {
@@ -128,7 +128,7 @@
       saveNameInput.setAttribute('autocapitalize','off');
       saveNameInput.setAttribute('aria-label',text('Имя сохранения','Save name'));
       saveNameInput.oninput=()=>{
-        saveNameInput.value=saveNameInput.value.replace(/[<>:"/\\|?*\r\n]/g,'');
+        if(textFieldKind==='save')saveNameInput.value=saveNameInput.value.replace(/[<>:"/\\|?*\r\n]/g,'');
         module.mobileSaveNameValue=saveNameInput.value;
       };
       saveNameInput.addEventListener('keydown',event=>{event.stopPropagation();if(event.key==='Enter' || event.key==='Escape'){event.preventDefault();saveNameInput.blur();}});
@@ -141,6 +141,8 @@
       window.addEventListener('scroll',positionSaveNameInput);
 
     }
+    textFieldKind=kind;
+    saveNameInput.setAttribute('aria-label',kind==='player'?text('Имя игрока','Player name'):text('Имя сохранения','Save name'));
     saveNameInput.hidden=false;
     saveNameRect=[x,y,width,height];positionSaveNameInput();
     if(document.activeElement!==saveNameInput && saveNameInput.value!==value)saveNameInput.value=value;

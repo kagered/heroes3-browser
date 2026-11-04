@@ -3,7 +3,7 @@ const code=fs.readFileSync('src/mobile-adventure.js','utf8');
 function setup({coarse=false,query='',width=844,height=390,manifest=true,language='en',screenSize,userAgent='',maxTouchPoints=0}={}) {
  const timers=[],buttons=[],elements=[],classes=new Set(),styles={},listeners={};let events=0;
  const game={getBoundingClientRect(){return {left:0,top:0,right:width,bottom:height,width,height}},width:844,height:600,style:{setProperty(k,v){styles[k]=v}},classList:{add(k){classes.add(k)},toggle(k,v){v?classes.add(k):classes.delete(k)}},append(){},addEventListener(){},focus(){document.activeElement=game;}};
- const document={body:{append(){}},documentElement:{lang:language},getElementById(){return game},createElement(tag){const e={tagName:tag,getContext:tag==='canvas'?()=>({drawImage(){}}):undefined,toDataURL:()=>"data:image/jpeg;base64,test",dataset:{},style:{setProperty(k,v){this[k]=v;}},listeners:{},blur(){if(document.activeElement===this){document.activeElement=null;this.listeners.blur?.();}},children:[],classList:{toggle(){}},setAttribute(){},append(...children){this.children.push(...children)},prepend(){},addEventListener(type,fn){this.listeners[type]=fn;},focus(){document.activeElement=this;this.listeners.focus?.();},querySelector(){return buttons[0]},querySelectorAll(){return buttons.filter(b=>b.dataset.action)}};elements.push(e);if(tag==='button')buttons.push(e);return e}};
+ const document={body:{append(){}},documentElement:{lang:language},getElementById(){return game},createElement(tag){const e={tagName:tag,getContext:tag==='canvas'?()=>({drawImage(){}}):undefined,toDataURL:()=>"data:image/jpeg;base64,test",dataset:{},style:{setProperty(k,v){this[k]=v;}},listeners:{},blur(){if(document.activeElement===this){document.activeElement=null;this.listeners.blur?.();}},children:[],classList:{toggle(){}},attrs:{},setAttribute(k,v){this.attrs[k]=v;},append(...children){this.children.push(...children)},prepend(){},addEventListener(type,fn){this.listeners[type]=fn;},focus(){document.activeElement=this;this.listeners.focus?.();},querySelector(){return buttons[0]},querySelectorAll(){return buttons.filter(b=>b.dataset.action)}};elements.push(e);if(tag==='button')buttons.push(e);return e}};
  const window={HEROES_MOBILE_ENGINE:manifest?{}:null,dispatchEvent(){events++},addEventListener(type,fn){listeners[type]=fn}};
  vm.runInNewContext(code,{window,document,URLSearchParams,location:{search:query},matchMedia:()=>({matches:coarse}),innerWidth:width,innerHeight:height,screen:screenSize,navigator:{userAgent,maxTouchPoints},Event:class{},setTimeout(fn){timers.push(fn);return timers.length},clearTimeout(){}});
  return {ui:window.HeroesMobileAdventure,buttons,elements,classes,events:()=>events,window,document,styles,listeners,timers};
@@ -138,3 +138,14 @@ console.log('PASS: bilingual digging action follows engine availability and clea
 const exiting=setup({coarse:true});const exitModule={};exiting.ui.attach(exitModule,exiting.ui.profile());const exitButton=exiting.buttons.find(b=>b.dataset.action===18);assert.equal(exitButton.textContent,'Exit to desktop');exitModule.mobileAdventureState(true,0);assert.equal(exitButton.disabled,true);exitModule.mobileAdventureState(true,1<<17);assert.equal(exitButton.disabled,false);exitButton.onclick();assert.equal(exitModule.mobileActions.at(-1),18);exitModule.mobileAdventureState(false,0,true);assert.equal(exitModule.mobileActions.length,0);
 const exitRu=setup({coarse:true,language:'ru'});exitRu.ui.attach({},exitRu.ui.profile());assert.equal(exitRu.buttons.find(b=>b.dataset.action===18).textContent,'Выход в ОС');
 console.log('PASS: bilingual exit action uses original availability and queued engine confirmation');
+
+const playerField=setup({coarse:true});const playerModule={};playerField.ui.attach(playerModule,playerField.ui.profile());
+playerField.ui.saveNameField(true,20,100,300,44,'Player','player');
+const playerInput=playerField.elements.find(e=>e.className==='mobile-save-name');
+assert.equal(playerInput.attrs['aria-label'],'Player name');
+playerInput.value='Игрок / Knight: III';playerInput.oninput();
+assert.equal(playerModule.mobileSaveNameValue,'Игрок / Knight: III','player names preserve punctuation and Unicode');
+playerField.ui.saveNameField(false);
+playerField.ui.saveNameField(true,20,100,300,44,'Save');playerInput.value='Save / One: II';playerInput.oninput();
+assert.equal(playerModule.mobileSaveNameValue,'Save  One II','save filenames retain their filename restrictions');
+console.log('PASS: player-name input reuses mobile keyboard bridge without applying filename rules');

@@ -229,3 +229,11 @@ The physical iPad trace reached `disposing previous game windows` after the resu
 
 Ownership regression check against the actual patched WindowHandler methods:
 `python3 tests/native/window-retirement.py /path/to/patched/vcmi`
+
+### Mobile scenario results and statistics
+
+The user confirmed Grail completion now reaches the result screen on iPad with retired-session windows. Mobile results use the original dialog texture instead of the unavailable-video black canvas, with larger score/rank fields and explicit Statistics and Continue actions. Scores, difficulty, rank, high-score persistence and victory/defeat music still use the original engine data and behavior.
+
+Statistics use a native mobile panel. Overview pages show one actual participant at a time with readable metrics and paged rows; the original charts remain available in the enlarged content area. Select-view and resource selectors use large paged buttons and a cancel action. Result windows use the mobile screen area even after the adventure map has been removed.
+
+The high-score name prompt is a separate mobile window and uses the existing browser input/keyboard bridge, including the pinned field above the iPad keyboard. Player names preserve Unicode and punctuation; save filenames keep their existing filename filter. The input is synchronized before submitting and hidden on save/cancel. Desktop layouts retain their original branches. Public tests cover player-name input versus filename filtering; web compilation checks the native changes. Interactive browser QA is unavailable; the new result/statistics/name layouts still need a physical-device check.
