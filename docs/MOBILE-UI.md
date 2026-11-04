@@ -212,3 +212,5 @@ DeferredDialogCompletion has a standalone native regression test covering queued
 Audit of the remaining completion path found that sendClientDisconnecting itself closes the connection and calls waitForServerShutdown. The mobile result transition must not invoke it. It now marks the completed session DISCONNECTING to ignore further gameplay packets, presents the original results with the game state still available, and leaves worker/server destruction to tracked browser teardown after the result screens. A late disconnect during this completed-session state also skips the synchronous server wait. Campaign/desktop paths are unchanged.
 
 The supplied Grail video was decoded into frames: the town already contains its Grail structure and remains on the town screen throughout the short clip. This supports successful construction but does not prove the exact blocked call or reproduce the fix. Full iPad completion still requires verification.
+
+The completed-session guard stays set until the runtime is destroyed. A separate one-shot flag prevents repeated relaunch requests while keeping late disconnect callbacks away from synchronous waits during teardown.

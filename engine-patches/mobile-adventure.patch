@@ -3394,7 +3394,7 @@
 + if(MAIN_THREAD_EM_ASM_INT({try{const load=Module.mobileAdventureUI && sessionStorage.getItem('heroes3.mobileMenuTarget')==='load';if(load)sessionStorage.removeItem('heroes3.mobileMenuTarget');return load?1:0;}catch{return 0;}}))menu->switchToTab("load");
 +#endif
 +#ifdef VCMI_HTML5_BUILD
-+ if(GH.windows().isTopWindow(menu) && MAIN_THREAD_EM_ASM_INT({if(Module.mobileFinishedGame && Module.mobileReturnToMenu){Module.mobileFinishedGame=false;Module.mobileReturnToMenu();return 1;}return 0;}))return;
++ if(GH.windows().isTopWindow(menu) && MAIN_THREAD_EM_ASM_INT({if(Module.mobileFinishedGame && Module.mobileReturnToMenu){if(!Module.mobileFinishedReturnQueued){Module.mobileFinishedReturnQueued=true;Module.mobileReturnToMenu();}return 1;}return 0;}))return;
 +#endif
  	// Handles mouse and key input
  	GH.handleEvents();
