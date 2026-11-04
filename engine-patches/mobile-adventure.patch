@@ -174,17 +174,18 @@
  	void hotkeyAbortCastingMode();
 --- a/client/gui/CGuiHandler.cpp
 +++ b/client/gui/CGuiHandler.cpp
-@@ -9,6 +9,9 @@
+@@ -9,6 +9,10 @@
   */
  #include "StdInc.h"
  #include "CGuiHandler.h"
++#include "MobileCompletionTrace.h"
 +#ifdef VCMI_HTML5_BUILD
 +#include <emscripten.h>
 +#endif
  
  #include "CIntObject.h"
  #include "CursorHandler.h"
-@@ -20,6 +23,9 @@
+@@ -20,6 +24,9 @@
  
  #include "../CGameInfo.h"
  #include "../adventureMap/AdventureMapInterface.h"
@@ -194,11 +195,34 @@
  #include "../render/Colors.h"
  #include "../render/Graphics.h"
  #include "../render/IFont.h"
-@@ -98,7 +104,58 @@
+@@ -67,13 +74,17 @@
+ 
+ void CGuiHandler::handleEvents()
+ {
++	mobileCompletionCheckpoint("dispatching result timers");
+ 	events().dispatchTimer(framerate().getElapsedMilliseconds());
++	mobileCompletionCheckpoint("result timers dispatched");
+ 
+ 	//player interface may want special event handling
+ 	if(nullptr != LOCPLINT && LOCPLINT->capturedAllEvents())
+ 		return;
+ 
++	mobileCompletionCheckpoint("dispatching result input");
+ 	input().processEvents();
++	mobileCompletionCheckpoint("result input dispatched");
+ }
+ 
+ void CGuiHandler::fakeMouseMove()
+@@ -95,16 +106,73 @@
+ 
+ void CGuiHandler::renderFrame()
+ {
++	mobileCompletionCheckpoint("entering result frame");
  	{
  		boost::mutex::scoped_lock interfaceLock(GH.interfaceMutex);
- 
--		if (nullptr != curInt)
+-
++		mobileCompletionCheckpoint("result frame interface lock acquired");
++
 +#ifdef VCMI_HTML5_BUILD
 +		if(MAIN_THREAD_EM_ASM_INT({ return Module.mobileAdventureUI ? 1 : 0; }))
 +		{
@@ -250,10 +274,38 @@
 +        for(const auto & window:windows().findWindows<CIntObject>())if(window.get()==adventureInt.get())playing=true;
 +        MAIN_THREAD_EM_ASM({if(window.HeroesPlayTime)window.HeroesPlayTime.setPlaying(!!$0);},playing);
 +#endif
-+        if (nullptr != curInt)
++		mobileCompletionCheckpoint("updating result interface");
+ 		if (nullptr != curInt)
  			curInt->update();
++		mobileCompletionCheckpoint("result interface updated");
  
  		if (settings["video"]["showfps"].Bool())
+ 			drawFPSCounter();
+ 
++		mobileCompletionCheckpoint("uploading result frame");
+ 		SDL_UpdateTexture(screenTexture, nullptr, screen->pixels, screen->pitch);
++		mobileCompletionCheckpoint("result frame uploaded");
+ 	}
+ 
+ 	SDL_RenderClear(mainRenderer);
+@@ -115,10 +183,17 @@
+ 
+ 		CCS->curh->render();
+ 
++		mobileCompletionCheckpoint("disposing previous game windows");
+ 		windows().onFrameRendered();
++		mobileCompletionCheckpoint("previous game windows disposed");
+ 	}
+ 
++	mobileCompletionCheckpoint("presenting result frame");
+ 	SDL_RenderPresent(mainRenderer);
++	mobileCompletionCheckpoint("result frame presented");
++#ifdef VCMI_HTML5_BUILD
++	mobileCompletionTracing=false;
++#endif
+ 	framerate().framerateDelay(); // holds a constant FPS
+ }
+ 
 --- a/client/adventureMap/AdventureMapShortcuts.cpp
 +++ b/client/adventureMap/AdventureMapShortcuts.cpp
 @@ -10,6 +10,9 @@
@@ -3452,8 +3504,11 @@
  	GH.windows().simpleRedraw();
 --- a/client/CServerHandler.cpp
 +++ b/client/CServerHandler.cpp
-@@ -10,6 +10,9 @@
+@@ -8,8 +8,12 @@
+  *
+  */
  #include "StdInc.h"
++#include "gui/MobileCompletionTrace.h"
  
  #include "CServerHandler.h"
 +#ifdef VCMI_HTML5_BUILD
@@ -3462,7 +3517,7 @@
  #include "Client.h"
  #include "CGameInfo.h"
  #include "ServerRunner.h"
-@@ -658,7 +661,15 @@
+@@ -658,7 +662,15 @@
  
  void CServerHandler::showHighScoresAndEndGameplay(PlayerColor player, bool victory, const StatisticDataSet & statistic)
  {
@@ -3478,7 +3533,7 @@
  
  	if(victory && client->gameState()->getStartInfo()->campState)
  	{
-@@ -670,6 +681,30 @@
+@@ -670,6 +682,31 @@
  		scenarioHighScores.parameters.push_back(param);
  		scenarioHighScores.isCampaign = false;
  
@@ -3503,13 +3558,14 @@
 +
 +   GH.windows().createAndPushWindow<CHighScoreInputScreen>(victory,scenarioHighScores,statistic);
 +   MAIN_THREAD_EM_ASM({if(Module.print)Module.print('Mobile scenario end: result screen opened');});
++   mobileCompletionTracing=true;
 +   return;
 +  }
 +#endif
  		endGameplay();
  		CMM->menu->switchToTab("main");
  		GH.windows().createAndPushWindow<CHighScoreInputScreen>(victory, scenarioHighScores, statistic);
-@@ -898,6 +933,10 @@
+@@ -898,6 +935,10 @@
  		return;
  	}
  
@@ -3627,3 +3683,56 @@
 +  auto ready=std::move(completion);completion={};return ready;
 + }
 +};
+--- a/client/eventsSDL/InputHandler.cpp
++++ b/client/eventsSDL/InputHandler.cpp
+@@ -10,6 +10,7 @@
+ 
+ #include "StdInc.h"
+ #include "InputHandler.h"
++#include "../gui/MobileCompletionTrace.h"
+ 
+ #include "NotificationHandler.h"
+ #include "InputSourceMouse.h"
+@@ -328,8 +329,10 @@
+ 
+ 	while(1 == SDL_PollEvent(&ev))
+ 	{
++		mobileCompletionCheckpoint("processing queued SDL event");
+ 		preprocessEvent(ev);
+ 	}
++	mobileCompletionCheckpoint("SDL event queue drained");
+ }
+ 
+ bool InputHandler::isKeyboardCmdDown() const
+@@ -407,7 +410,9 @@
+ 
+ 	(*heapFunctor)();
+ 
++	mobileCompletionCheckpoint("result callback returned; releasing callback");
+ 	delete heapFunctor;
++	mobileCompletionCheckpoint("result callback released");
+ }
+ 
+ const Point & InputHandler::getCursorPosition() const
+--- /dev/null
++++ b/client/gui/MobileCompletionTrace.h
+@@ -0,0 +1,19 @@
++#pragma once
++
++#ifdef VCMI_HTML5_BUILD
++#include <emscripten.h>
++#include <set>
++#include <string>
++
++// One-shot checkpoints for the first result frame; no work during gameplay.
++inline bool mobileCompletionTracing = false;
++inline void mobileCompletionCheckpoint(const char * phase)
++{
++ if(!mobileCompletionTracing) return;
++ static std::set<std::string> recorded;
++ if(recorded.insert(phase).second)
++  MAIN_THREAD_EM_ASM({if(Module.print)Module.print('Mobile scenario end: '+UTF8ToString($0));},phase);
++}
++#else
++inline void mobileCompletionCheckpoint(const char *) {}
++#endif

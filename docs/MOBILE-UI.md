@@ -220,3 +220,5 @@ Completion checkpoints are retained in session storage and copied into the launc
 ### Durable scenario completion diagnostics
 
 Completion checkpoints persist in localStorage across closing and reopening a frozen tab. The launch log prints the previous attempt with timestamps. A new confirmed Grail placement resets the trace; only the latest 24 generic phase labels are retained. Checkpoints cover Grail updates, terminal packets, dialog acknowledgement, window cleanup and score-screen construction. This diagnostic update still requires an iPad reproduction; the freeze is not yet confirmed fixed.
+
+The iPad trace reached `result screen opened` after score calculation and title activation. First-frame checkpoints now distinguish callback cleanup, the SDL event queue, interface/timer/input updates, texture upload, deferred window destruction and presentation. These checkpoints are recorded once and stop after the first result frame is presented; they are inactive during normal gameplay. This narrows the investigation but does not establish the cause of the freeze.
