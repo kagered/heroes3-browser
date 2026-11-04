@@ -89,7 +89,7 @@
  	CIntObject::showAll(to);
  	dim(to);
  	LOCPLINT->cingconsole->show(to);
-@@ -937,3 +956,69 @@
+@@ -937,3 +956,70 @@
  
  	return spellBeingCasted->getAdventureMechanics().canBeCastAt(problem, LOCPLINT->cb.get(), LOCPLINT->localState->getCurrentHero(), targetPosition);
  }
@@ -121,7 +121,8 @@
 +		EShortcut::ADVENTURE_ZOOM_IN, EShortcut::ADVENTURE_ZOOM_OUT,
 +		EShortcut::ADVENTURE_KINGDOM_OVERVIEW, EShortcut::ADVENTURE_FIRST_HERO,
 +		EShortcut::ADVENTURE_SAVE_GAME, EShortcut::ADVENTURE_LOAD_GAME,
-+		EShortcut::ADVENTURE_TO_MAIN_MENU, EShortcut::ADVENTURE_VIEW_SCENARIO
++		EShortcut::ADVENTURE_TO_MAIN_MENU, EShortcut::ADVENTURE_VIEW_SCENARIO,
++        EShortcut::ADVENTURE_DIG_GRAIL
 +	};
 +	unsigned enabled = 0;
 +	for(const auto & shortcut : shortcuts->getShortcuts())

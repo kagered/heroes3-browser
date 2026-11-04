@@ -190,3 +190,7 @@ The supplied Russian Tutorial.tut stores the Inferno/Archangels event message as
 External dwelling recruitment stays open after an acknowledged purchase, retaining variant arrows and the success notice, so a player can buy other war-machine types without revisiting the building. Town single-dwelling behavior remains the engine default.
 
 The native mobile shell receives player-end, opponent-start and your-turn events from the engine, including player color and the authoritative month/week/day. A noninteractive gold-framed ribbon animates an hourglass while waiting, identifies opponents, then briefly shows Your turn with the new date. It never introduces a gameplay delay or confirmation. Classic battle windows suppress the ribbon; reduced-motion preferences disable animation. Tests cover phases, date, stale dismissal timers and window visibility. Physical iPad timing and presentation still require checking; Browser use is unavailable in this session.
+
+### Mobile digging action
+
+Menu → Dig (Копать) forwards action 17 to ADVENTURE_DIG_GRAIL through the existing shortcut availability mask and queued adventure dispatch. The original hero diggingStatus checks, messages and dig callback remain authoritative, including movement, occupied ground and terrain restrictions. The action is unavailable without a selected hero or behind modal windows. Tests cover Russian/English labels, availability, queue dispatch and dialog clearing. Actual iPad digging still needs physical verification.

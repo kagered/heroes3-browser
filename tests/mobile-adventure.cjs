@@ -13,7 +13,7 @@ assert.equal(setup({coarse:true,width:390,height:844}).ui.profile().width,844,'p
 assert.equal(setup({coarse:true,query:'?mobile-map=off'}).ui.profile(),null);
 assert.equal(setup({coarse:true,manifest:false}).ui.profile(),null,'source-only export needs no experimental binaries');
 const t=setup({coarse:true});assert.equal(t.ui.profile().width,844);
-const moduleOptions={};t.ui.attach(moduleOptions,t.ui.profile());assert.equal(new Set(t.buttons.filter(b=>b.dataset.action).map(b=>b.dataset.action)).size,16);
+const moduleOptions={};t.ui.attach(moduleOptions,t.ui.profile());assert.equal(new Set(t.buttons.filter(b=>b.dataset.action).map(b=>b.dataset.action)).size,17);
 moduleOptions.mobileAdventureState(true,1|16);assert(t.classes.has('mobile-adventure-active'));assert.equal(t.buttons.find(b=>b.dataset.action===5).disabled,false);assert.equal(t.buttons.find(b=>b.dataset.action===2).disabled,true);
 for(let i=0;i<10;i++)t.ui.send(1);assert.equal(moduleOptions.mobileActions.length,4,'bounded queue');
 moduleOptions.mobileAdventureState(false,0);assert.equal(moduleOptions.mobileActions.length,0);t.ui.send(1);assert.equal(moduleOptions.mobileActions.length,0,'dialogs reject map actions');assert(!t.classes.has('mobile-adventure-active'));
@@ -129,3 +129,8 @@ turnModule.mobileTurnState(0,0,2,1,1);oldTurnTimer();assert.equal(banner.hidden,
 turnModule.mobileAdventureState(false,0,false);assert.equal(banner.hidden,true,'turn banner stays out of classic battle windows');turnModule.mobileAdventureState(true,0xffff);assert.equal(banner.hidden,false);
 turnModule.mobileTurnState(2,0,3,1,1);turns.timers.at(-1)();assert.equal(banner.hidden,true,'your-turn notice dismisses without blocking gameplay');
 console.log('PASS: engine turn phases, player color/date, stale timers and battle visibility');
+
+const digging=setup({coarse:true});const digModule={};digging.ui.attach(digModule,digging.ui.profile());const digButton=digging.buttons.find(b=>b.dataset.action===17);
+assert(digButton);assert.equal(digButton.textContent,'Dig');digModule.mobileAdventureState(true,0);assert.equal(digButton.disabled,true);digModule.mobileAdventureState(true,1<<16);assert.equal(digButton.disabled,false);digButton.onclick();assert.equal(digModule.mobileActions.at(-1),17);digModule.mobileAdventureState(false,0,true);assert.equal(digButton.disabled,true);assert.equal(digModule.mobileActions.length,0);
+const diggingRu=setup({coarse:true,language:'ru'});diggingRu.ui.attach({},diggingRu.ui.profile());assert.equal(diggingRu.buttons.find(b=>b.dataset.action===17).textContent,'Копать');
+console.log('PASS: bilingual digging action follows engine availability and clears behind dialogs');
