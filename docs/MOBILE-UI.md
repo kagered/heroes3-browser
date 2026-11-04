@@ -214,3 +214,5 @@ Audit of the remaining completion path found that sendClientDisconnecting itself
 The supplied Grail video was decoded into frames: the town already contains its Grail structure and remains on the town screen throughout the short clip. This supports successful construction but does not prove the exact blocked call or reproduce the fix. Full iPad completion still requires verification.
 
 The completed-session guard stays set until the runtime is destroyed. A separate one-shot flag prevents repeated relaunch requests while keeping late disconnect callbacks away from synchronous waits during teardown.
+
+Completion checkpoints are retained in session storage and copied into the launch log on the next page load, so a reload after a stall does not erase the last completed phase. This local diagnostic contains only the phase label.

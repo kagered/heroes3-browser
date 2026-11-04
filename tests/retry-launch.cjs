@@ -11,3 +11,5 @@ let scheduled,returned=0;flag=undefined;
 vm.runInNewContext(app.slice(menuStart,menuEnd)+';returnToGameMenu();',{sessionStorage:{setItem(k,v){assert.equal(k,'heroes3.retryLaunch');flag=v}},setTimeout(callback){scheduled=callback},returnHome(){assert.equal(flag,'1');returned++}});
 assert.equal(returned,0,'engine teardown must wait for the confirmation callback to return');assert.equal(typeof scheduled,'function');scheduled();assert.equal(returned,1);
 console.log('PASS: confirmed menu return schedules existing teardown and one-shot title-menu relaunch');
+
+const logCode=app.slice(app.indexOf('const log ='),app.indexOf('const status ='))+'; log("Mobile scenario end: result screen opened");';const completionStore=new Map(),logElement={textContent:''};vm.runInNewContext(logCode,{$:()=>logElement,console:{log(){}},autoJoining:false,sessionStorage:{setItem:(k,v)=>completionStore.set(k,v)}});assert.equal(completionStore.get('heroes3.lastCompletionPhase'),'Mobile scenario end: result screen opened');assert(logElement.textContent.includes('result screen opened'));
