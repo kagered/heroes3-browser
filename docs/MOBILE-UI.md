@@ -285,3 +285,7 @@ Puzzle controls use drawn plus/minus, direction arrows and a center crosshair wi
 ### Recruitment notice lifetime
 
 Anchored recruitment feedback is dismissed immediately when its dialog deactivates (including the town-recruitment path that automatically closes after purchase). A late stock update cannot show feedback from an inactive recruitment window. Persistent war-machine recruitment still shows its status while open. JS regression checks immediate dismissal and isolation from unrelated notices. Physical phone verification remains pending.
+
+### Two-second header feedback
+
+This supersedes dialog-anchored/dismiss-on-close notices. Feedback is now an inline flex item between controls in the visible top toolbar, with a two-second lifetime. It survives automatic recruitment closure and follows the currently visible map/dialog header. On the map it briefly uses the hero HUD slot, which returns when the status expires. Toolbar buttons retain their own space; long text ellipsizes within the remaining width. The legacy engine dismiss callback is retained as a no-op for compatibility with immutable cached engine builds. Tests cover actual DOM reparenting, two-second expiry, dialog-close survival and HUD restoration. No native engine behavior changes are needed.

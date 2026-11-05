@@ -1,12 +1,12 @@
 const fs=require('fs'),vm=require('vm'),assert=require('assert/strict');
 const code=fs.readFileSync('src/mobile-adventure.js','utf8');
 function setup({coarse=false,query='',width=844,height=390,manifest=true,language='en',screenSize,userAgent='',maxTouchPoints=0}={}) {
- const timers=[],buttons=[],elements=[],classes=new Set(),styles={},listeners={};let events=0;
+ const timerDelays=[],timers=[],buttons=[],elements=[],classes=new Set(),styles={},listeners={};let events=0;
  const game={getBoundingClientRect(){return {left:0,top:0,right:width,bottom:height,width,height}},width:844,height:600,style:{setProperty(k,v){styles[k]=v}},classList:{add(k){classes.add(k)},toggle(k,v){v?classes.add(k):classes.delete(k)}},append(){},addEventListener(){},focus(){document.activeElement=game;}};
- const document={body:{append(){}},documentElement:{lang:language},getElementById(){return game},createElement(tag){const e={tagName:tag,getContext:tag==='canvas'?()=>({drawImage(){}}):undefined,toDataURL:()=>"data:image/jpeg;base64,test",dataset:{},style:{setProperty(k,v){this[k]=v;}},listeners:{},blur(){if(document.activeElement===this){document.activeElement=null;this.listeners.blur?.();}},children:[],classList:{toggle(){}},attrs:{},setAttribute(k,v){this.attrs[k]=v;},append(...children){this.children.push(...children)},prepend(){},addEventListener(type,fn){this.listeners[type]=fn;},focus(){document.activeElement=this;this.listeners.focus?.();},querySelector(){return buttons[0]},querySelectorAll(){return buttons.filter(b=>b.dataset.action)}};elements.push(e);if(tag==='button')buttons.push(e);return e}};
+ const document={body:{append(){}},documentElement:{lang:language},getElementById(){return game},createElement(tag){const e={tagName:tag,getContext:tag==='canvas'?()=>({drawImage(){}}):undefined,toDataURL:()=>"data:image/jpeg;base64,test",dataset:{},style:{setProperty(k,v){this[k]=v;}},listeners:{},blur(){if(document.activeElement===this){document.activeElement=null;this.listeners.blur?.();}},children:[],classList:{toggle(){}},attrs:{},setAttribute(k,v){this.attrs[k]=v;},get lastElementChild(){return this.children.at(-1)},append(...children){for(const child of children){if(child.parentElement)child.parentElement.children=child.parentElement.children.filter(e=>e!==child);this.children.push(child);child.parentElement=this;}},insertBefore(child,before){if(child.parentElement)child.parentElement.children=child.parentElement.children.filter(e=>e!==child);const i=this.children.indexOf(before);this.children.splice(i<0?this.children.length:i,0,child);child.parentElement=this;},prepend(){},addEventListener(type,fn){this.listeners[type]=fn;},focus(){document.activeElement=this;this.listeners.focus?.();},querySelector(){return buttons[0]},querySelectorAll(){return buttons.filter(b=>b.dataset.action)}};elements.push(e);if(tag==='button')buttons.push(e);return e}};
  const window={HEROES_MOBILE_ENGINE:manifest?{}:null,dispatchEvent(){events++},addEventListener(type,fn){listeners[type]=fn}};
- vm.runInNewContext(code,{window,document,URLSearchParams,location:{search:query},matchMedia:()=>({matches:coarse}),innerWidth:width,innerHeight:height,screen:screenSize,navigator:{userAgent,maxTouchPoints},Event:class{},setTimeout(fn){timers.push(fn);return timers.length},clearTimeout(){}});
- return {ui:window.HeroesMobileAdventure,buttons,elements,classes,events:()=>events,window,document,styles,listeners,timers};
+ vm.runInNewContext(code,{window,document,URLSearchParams,location:{search:query},matchMedia:()=>({matches:coarse}),innerWidth:width,innerHeight:height,screen:screenSize,navigator:{userAgent,maxTouchPoints},Event:class{},setTimeout(fn,delay){timerDelays.push(delay);timers.push(fn);return timers.length},clearTimeout(){}});
+ return {ui:window.HeroesMobileAdventure,buttons,elements,classes,events:()=>events,window,document,styles,listeners,timers,timerDelays};
 }
 assert.equal(setup().ui.profile(),null,'desktop keeps original engine');
 assert.equal(setup({coarse:true,width:390,height:844}).ui.profile().width,844,'portrait starts the same landscape layout');
@@ -150,16 +150,19 @@ playerField.ui.saveNameField(true,20,100,300,44,'Save');playerInput.value='Save 
 assert.equal(playerModule.mobileSaveNameValue,'Save  One II','save filenames retain their filename restrictions');
 console.log('PASS: player-name input reuses mobile keyboard bridge without applying filename rules');
 
-const anchoredNotice=setup({coarse:true});anchoredNotice.ui.attach({},anchoredNotice.ui.profile());
-anchoredNotice.ui.notify('Recruited: Ammo Carts × 1',true,{x:36,y:224,width:320});
-const anchored=anchoredNotice.elements.find(e=>e.className==='mobile-action-notice');
-assert.equal(anchored.style.left,'36px');assert.equal(anchored.style.top,'224px');assert.equal(anchored.style.width,'320px');
-anchoredNotice.ui.notify('Another notice');assert.equal(anchored.style.left,'');assert.equal(anchored.style.top,'');assert.equal(anchored.style.width,'');
-console.log('PASS: recruitment status stays in the native safe slot; subsequent general notices reset placement');
-
-anchoredNotice.ui.notify('Recruiting: Swordsmen × 4',false,{x:36,y:224,width:320});
-assert.equal(anchored.hidden,false);anchoredNotice.ui.dismissRecruitNotice();assert.equal(anchored.hidden,true,'closing recruitment must remove its pending status immediately');
-anchoredNotice.ui.notify('Recruited: Ammo Carts × 1',true,{x:36,y:224,width:320});assert.equal(anchored.hidden,false,'an open recruitment dialog can show the confirmed result');
-anchoredNotice.ui.dismissRecruitNotice();assert.equal(anchored.hidden,true);
-anchoredNotice.ui.notify('General status');anchoredNotice.ui.dismissRecruitNotice();assert.equal(anchored.hidden,false,'dismissal of recruitment must not hide unrelated notices');
-console.log('PASS: recruitment notice follows dialog lifetime and leaves general notices alone');
+const headerNotice=setup({coarse:true});const headerModule={};headerNotice.ui.attach(headerModule,headerNotice.ui.profile());
+headerModule.mobileAdventureState(false,0,true);
+headerNotice.ui.notify('Recruiting: Swordsmen × 4');
+const noticeBar=headerNotice.elements.find(e=>e.className==='mobile-action-notice');
+const dialogHeader=noticeBar.parentElement;assert.equal(dialogHeader.className,'mobile-adventure-top');
+assert.equal(dialogHeader.children.at(-2),noticeBar,'status sits before Home without covering toolbar controls');
+assert.equal(headerNotice.timerDelays.at(-1),2000);
+headerNotice.ui.dismissRecruitNotice();assert.equal(noticeBar.hidden,false,'closing recruitment preserves the short-lived header feedback');
+headerModule.mobileAdventureState(true,0xffff);
+assert.notEqual(noticeBar.parentElement,dialogHeader,'notice follows the visible header after returning to map');
+const headerHud=headerNotice.elements.find(e=>e.className==='mobile-hero-hud');assert.equal(headerHud.hidden,true,'temporary feedback uses the HUD slot without covering buttons');
+headerNotice.timers.at(-1)();assert.equal(noticeBar.hidden,true);assert.equal(headerHud.hidden,false);
+headerModule.mobileAdventureState(false,0,true);headerNotice.ui.notify('Recruited: Ammo Carts × 1',true);
+assert.equal(noticeBar.parentElement,dialogHeader);assert.equal(headerNotice.timerDelays.at(-1),2000);
+headerNotice.timers.at(-1)();assert.equal(noticeBar.hidden,true);
+console.log('PASS: two-second feedback sits between toolbar buttons, survives dialog closure, follows the active header and restores hero HUD');

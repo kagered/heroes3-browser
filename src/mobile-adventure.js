@@ -87,6 +87,7 @@
       game.scrollTop=0;game.scrollLeft=0;
       mapTop.hidden=!(active || popup);bottom.hidden=!(active || popup);dialogTop.hidden=active || popup;
       mapTop.inert=bottom.inert=popup;
+      positionHeaderNotice();
       if(!active){module.mobileActions.length=0;togglePause(false);}
       window.dispatchEvent(new Event('mobile-adventure-change'));
     }
@@ -95,20 +96,21 @@
       for(const button of panel.querySelectorAll('button[data-action]'))button.disabled=!(mask&(1<<(Number(button.dataset.action)-1)));
     }
   }
-  let noticeAnchored=false;
-  function dismissRecruitNotice() {
-    if(!actionNotice || !noticeAnchored)return;
-    clearTimeout(noticeTimer);actionNotice.hidden=true;noticeAnchored=false;
+  function positionHeaderNotice() {
+    if(!actionNotice || !mapTop || !dialogTop)return;
+    const target=(active || popup)?mapTop:dialogTop;
+    if(actionNotice.parentElement!==target)target.insertBefore(actionNotice,target.lastElementChild);
+    if(heroHud)heroHud.hidden=!actionNotice.hidden && (active || popup);
   }
-  function notify(message,success=false,anchor=null) {
+  // Compatibility with engines that dismissed the old dialog-anchored toast.
+  // Header feedback owns its two-second lifetime and survives dialog closure.
+  function dismissRecruitNotice() {}
+  function notify(message,success=false) {
     if(!actionNotice)return;
     clearTimeout(noticeTimer);actionNotice.textContent=message;actionNotice.hidden=false;
-    const anchored=anchor && Number.isFinite(anchor.x) && Number.isFinite(anchor.y) && Number.isFinite(anchor.width);
-    noticeAnchored=!!anchored;
-    actionNotice.classList.toggle('anchored',noticeAnchored);
-    Object.assign(actionNotice.style,anchored?{left:anchor.x+'px',top:anchor.y+'px',width:Math.max(120,anchor.width)+'px'}:{left:'',top:'',width:''});
     actionNotice.classList.toggle('success',success);
-    noticeTimer=setTimeout(()=>{actionNotice.hidden=true;},success?4000:5000);
+    positionHeaderNotice();
+    noticeTimer=setTimeout(()=>{actionNotice.hidden=true;positionHeaderNotice();},2000);
   }
   let saveNameInput, saveNameDone, saveNameRect, textFieldKind='save';
   function positionSaveNameInput() {
@@ -250,7 +252,7 @@
         }
       });
       actionNotice=document.createElement('div');actionNotice.className='mobile-action-notice';actionNotice.hidden=true;actionNotice.setAttribute('role','status');actionNotice.setAttribute('aria-live','polite');actionNotice.setAttribute('aria-atomic','true');
-      panel.append(mapTop,dialogTop,bottom,screenHelp,pausePanel,actionNotice);game.append(panel);
+      panel.append(mapTop,dialogTop,bottom,screenHelp,pausePanel);game.append(panel);positionHeaderNotice();
       // SDL derives mouse coordinates from the canvas bounding rectangle, which
       // contains swapped axes when the landscape surface is rotated in portrait.
       // Cancel page scrolling only inside the game surface. Safari's own
