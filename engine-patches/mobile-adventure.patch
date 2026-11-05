@@ -3332,6 +3332,15 @@
  }
  
  BattleResultResources BattleResultWindow::getResources(const BattleResult & br)
+@@ -975,7 +982,7 @@
+ 	if(embedded)
+ 	{
+ 		int32_t queueSmallOutsideYOffset = 65;
+-		bool queueSmallOutside = settings["battle"]["queueSmallOutside"].Bool() && (pos.y - queueSmallOutsideYOffset) >= 0;
++		bool queueSmallOutside = !CMessage::isMobileSession() && settings["battle"]["queueSmallOutside"].Bool() && (pos.y - queueSmallOutsideYOffset) >= 0;
+ 		queueSize = std::clamp(static_cast<int>(settings["battle"]["queueSmallSlots"].Float()), 1, queueSmallOutside ? GH.screenDimensions().x / 41 : 19);
+ 
+ 		pos.w = queueSize * 41;
 @@ -1172,3 +1179,36 @@
  		if(boundUnitID.has_value() && stack->unitId() == *boundUnitID)
  			GH.windows().createAndPushWindow<CStackWindow>(stack, true);
@@ -4605,7 +4614,20 @@
  
  #include "BattleInterface.h"
  #include "BattleInterfaceClasses.h"
-@@ -476,6 +478,7 @@
+@@ -130,7 +132,11 @@
+ 	bool showQueue = settings["battle"]["showQueue"].Bool();
+ 	std::string queueSize = settings["battle"]["queueSize"].String();
+ 
+-	if(queueSize == "auto")
++	// Native mobile presentation always uses the queue inside its 800x556 field.
++	// A detached tablet queue expands/repositions the legacy window by 85px.
++	if(CMessage::isMobileSession())
++		embedQueue = true;
++	else if(queueSize == "auto")
+ 		embedQueue = GH.screenDimensions().y < 700;
+ 	else
+ 		embedQueue = GH.screenDimensions().y < 700 || queueSize == "small";
+@@ -476,6 +482,7 @@
  
  void BattleWindow::keyPressed(EShortcut key)
  {
@@ -4613,7 +4635,7 @@
  	if (owner.openingPlaying())
  	{
  		owner.openingEnd();
-@@ -921,6 +924,7 @@
+@@ -921,6 +928,7 @@
  
  void BattleWindow::showAll(Canvas & to)
  {
@@ -4621,7 +4643,7 @@
  	CIntObject::showAll(to);
  
  	if (GH.screenDimensions().x != 800 || GH.screenDimensions().y !=600)
-@@ -929,6 +933,7 @@
+@@ -929,6 +937,7 @@
  
  void BattleWindow::show(Canvas & to)
  {
@@ -4629,7 +4651,7 @@
  	CIntObject::show(to);
  	LOCPLINT->cingconsole->show(to);
  }
-@@ -939,3 +944,125 @@
+@@ -939,3 +948,125 @@
  		logGlobal->error("Only top interface must be closed");
  	GH.windows().popWindows(1);
  }

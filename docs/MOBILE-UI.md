@@ -295,3 +295,9 @@ This supersedes dialog-anchored/dismiss-on-close notices. Feedback is now an inl
 The mobile drawing path incorrectly disabled BattleHero objects along with legacy UI. BattleHero owns TIME events, and HeroCastAnimation completes through its phase-finished callback; disabling those ticks can leave a cast/animation waiting indefinitely. Mobile setup/drawing now leaves both hero objects active. BattleHero only registers TIME events, so retaining it does not introduce a second set of unmapped click handlers. This addresses a concrete animation-lifetime bug; the reported Auto freeze still requires physical-device confirmation.
 
 `python3 tests/native/mobile-battle-animation-lifetime.py /path/to/patched/vcmi` executes the actual mobile drawing and hero tick methods in a lightweight lifecycle fixture. It rejects the previous hero-disabling implementation and confirms both heroes keep completing phases while legacy controls remain hidden. Native build/public checks still do not substitute for an on-device Auto/spell replay.
+
+### Tablet battlefield origin and queue
+
+The tablet-only crop came from the legacy detached queue: at render heights >=700 the desktop layout expands/repositions the battle window for an 85px queue. The mobile 800x556 render buffer assumes the battlefield has no such offset, so its bottom was clipped. Mobile now always uses the embedded queue and disables the optional detached-small-queue placement. This preserves the same source origin on phone and iPad; desktop queue preferences are unchanged.
+
+`python3 tests/native/mobile-battle-queue-layout.py /path/to/patched/vcmi` executes the actual createQueue policy for phone/tablet render heights, all queue-size settings and hidden/visible queues, and checks the original detached desktop behavior. Physical iPad verification of the full bottom row remains pending.
