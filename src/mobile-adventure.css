@@ -68,3 +68,5 @@
 @media(prefers-reduced-motion:reduce){.mobile-turn-banner,.mobile-turn-hourglass{animation:none}}
 
 @media(max-height:480px){.mobile-pause-panel{align-content:start}}
+
+.mobile-action-notice.anchored{bottom:auto;transform:none;box-sizing:border-box;max-width:none;padding:6px 10px;font-size:14px;line-height:20px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-radius:6px;box-shadow:none}

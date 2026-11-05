@@ -273,3 +273,11 @@ This supersedes the cropped battlefield camera above, which the user rejected on
 Wait, Defend and Spells use compact dark translucent tiles with original command icons, plus More for the other commands. Wide-phone side margins are used before overlaying the image; otherwise the quick tiles sit along the image's upper edge. More opens a dismissible compact command palette. Existing shortcut availability guards still apply. Tile hits and the open palette explicitly block battlefield targeting so tapping UI cannot also attack or move a unit. Back closes the palette before cancelling any other combat action.
 
 Native transform tests exercise actual tile exclusion, open-palette input blocking and field coordinate mapping. The whole-field and quick-tile layout still requires physical phone/iPad verification; interactive browser QA is unavailable.
+
+### Battle results, recruitment feedback and puzzle controls
+
+BattleResultWindow is now a native mobile window, so opening it retains the full-size battle layer instead of switching the canvas into the classic dialog scaling path. Summary and separate attacker/defender casualty pages use the original result names, outcome, description, creature losses and result callbacks. Continue and optional Replay remain wired to the engine's original actions. The original window remains unchanged on desktop.
+
+Recruitment feedback is anchored in the empty strip below the creature preview and above the buy controls, rather than at the screen bottom. A compact single-line status cannot cover the Recruit button; long text ellipsizes visually while the full live-status text remains available. General notifications reset anchored positioning. A JS regression checks native-slot placement and reset.
+
+Puzzle controls use drawn plus/minus, direction arrows and a center crosshair with a separate wide Whole map button. This replaces the cramped text grid, ambiguous ASCII arrows and wrapped Center caption. Native camera behavior and puzzle masks are unchanged. Phone checks for final result sizing, feedback placement and control appearance remain pending; interactive browser QA is unavailable.

@@ -837,7 +837,7 @@
 +void CRecruitmentWindow::notifyRecruit(const std::string & text,bool success)
 +{
 +#ifdef VCMI_HTML5_BUILD
-+ MAIN_THREAD_EM_ASM({if(window.HeroesMobileAdventure && window.HeroesMobileAdventure.notify)window.HeroesMobileAdventure.notify(UTF8ToString($0),!!$1);},text.c_str(),success);
++ MAIN_THREAD_EM_ASM({if(window.HeroesMobileAdventure && window.HeroesMobileAdventure.notify)window.HeroesMobileAdventure.notify(UTF8ToString($0),!!$1,{x:$2,y:$3,width:$4});},text.c_str(),success,pos.x+16,pos.y+pos.h-96,std::max(120,pos.w-296));
 +#endif
  }
  
@@ -3306,7 +3306,7 @@
  
  	exit = std::make_shared<CButton>(Point(384, 505), AnimationPath::builtin("iok6432.def"), std::make_pair("", ""), [&](){ bExitf();}, EShortcut::GLOBAL_ACCEPT);
  	exit->setBorderColor(Colors::METALLIC_GOLD);
-@@ -841,7 +843,9 @@
+@@ -841,9 +843,14 @@
  	auto resources = getResources(br);
  
  	description = std::make_shared<CTextBox>(resources.resultText.toString(), Rect(69, 203, 330, 68), 0, FONT_SMALL, ETextAlignment::CENTER, Colors::WHITE);
@@ -3316,7 +3316,49 @@
 + else videoPlayer = std::make_shared<VideoWidget>(Point(107, 70), resources.prologueVideo, resources.loopedVideo, false);
  
  	CCS->musich->playMusic(resources.musicName, false, true);
++ if(CMessage::isMobileSession()){
++  mobileResult=std::make_shared<BattleResult>(br);mobileNames={sideNames[0],sideNames[1]};mobileDescription=resources.resultText.toString();setupMobile();
++ }
  }
+ 
+ BattleResultResources BattleResultWindow::getResources(const BattleResult & br)
+@@ -1172,3 +1179,36 @@
+ 		if(boundUnitID.has_value() && stack->unitId() == *boundUnitID)
+ 			GH.windows().createAndPushWindow<CStackWindow>(stack, true);
+ }
++
++void BattleResultWindow::setupMobile()
++{
++ if(!mobileResult)return;
++ OBJECT_CONSTRUCTION;
++ if(prepareMobileWindow(*this,mobilePanel,480,true).w==0)return;
++ mobilePanel=std::make_shared<CMobilePanel>(Point(pos.w,pos.h),mobileText("Итоги сражения","Battle result"),std::vector<std::string>{mobileText("Итог","Summary"),mobileText("Атакующие","Attacker"),mobileText("Защитники","Defender")});
++ mobilePanel->add<CMobileTownButton>(-1,Rect(pos.w-132,0,120,40),mobileText("Продолжить","Continue"),[this](){bExitf();});
++ if(repeat)mobilePanel->add<CMobileTownButton>(-1,Rect(pos.w-260,0,120,40),mobileText("Переиграть","Replay"),[this](){bRepeatf();});
++ int cw=(pos.w-40)/2;
++ for(int i=0;i<2;++i){int x=16+i*(cw+8);
++  mobilePanel->add<CLabel>(0,x,48,FONT_MEDIUM,ETextAlignment::TOPLEFT,Colors::WHITE,mobileNames[i],cw);
++  mobilePanel->add<CLabel>(0,x,78,FONT_MEDIUM,ETextAlignment::TOPLEFT,Colors::YELLOW,mobileResult->winner==static_cast<BattleSide>(i)?mobileText("Победитель","Victorious"):mobileText("Побеждён","Defeated"),cw);
++ }
++ mobilePanel->add<CTextBox>(0,mobileDescription,Rect(16,110,pos.w-32,std::max(50,pos.h-174)),0,FONT_MEDIUM,ETextAlignment::TOPLEFT,Colors::WHITE);
++ for(int side=0;side<2;++side){
++  const auto & casualties=mobileResult->casualties[static_cast<BattleSide>(side)];
++  int visible=0;for(const auto & entry:casualties)if(entry.first!=CreatureID::ARROW_TOWERS)++visible;
++  if(!visible){mobilePanel->add<CLabel>(side+1,16,60,FONT_MEDIUM,ETextAlignment::TOPLEFT,Colors::WHITE,mobileText("Без потерь","No casualties"));continue;}
++  int columns=std::min(4,std::max(1,(pos.w-24)/110));int rows=(visible+columns-1)/columns;
++  int cellW=(pos.w-24)/columns,cellH=(pos.h-100)/rows,index=0;
++  for(const auto & entry:casualties){if(entry.first==CreatureID::ARROW_TOWERS)continue;
++   auto creature=CGI->creatures()->getByIndex(entry.first);int x=12+(index%columns)*cellW,y=44+(index/columns)*cellH;
++   mobilePanel->add<CAnimImage>(side+1,AnimationPath::builtin("CPRSMALL"),creature->getIconIndex(),0,x+8,y);
++   mobilePanel->add<CLabel>(side+1,x+50,y+16,FONT_MEDIUM,ETextAlignment::CENTERLEFT,Colors::WHITE,std::to_string(entry.second),cellW-54);
++   mobilePanel->add<CLabel>(side+1,x+8,y+44,FONT_SMALL,ETextAlignment::TOPLEFT,Colors::YELLOW,creature->getNamePluralTranslated(),cellW-16);++index;
++  }
++ }
++ mobilePanel->onPage=[this](int page){mobilePage=page;};mobilePanel->select(mobilePage);
++}
++void BattleResultWindow::show(Canvas & to){if(mobilePanel){mobilePanel->resize(this,[this](){setupMobile();},480);mobilePanel->show(to);}else WindowBase::show(to);}
++void BattleResultWindow::showAll(Canvas & to){if(mobilePanel)mobilePanel->showAll(to);else WindowBase::showAll(to);}
++void BattleResultWindow::keyPressed(EShortcut key){if(!mobilePanel)return;if(key==EShortcut::GLOBAL_ACCEPT || key==EShortcut::GLOBAL_RETURN)bExitf();else if(key==EShortcut::GLOBAL_CANCEL && repeat)bRepeatf();}
 --- a/client/battle/BattleFieldController.cpp
 +++ b/client/battle/BattleFieldController.cpp
 @@ -9,6 +9,7 @@
@@ -3418,14 +3460,49 @@
  }
 --- a/client/battle/BattleInterfaceClasses.h
 +++ b/client/battle/BattleInterfaceClasses.h
-@@ -234,6 +234,7 @@
+@@ -15,6 +15,8 @@
+ #include "../../lib/battle/BattleHex.h"
+ #include "../../lib/texts/MetaString.h"
+ #include "../windows/CWindowObject.h"
++#include "../windows/CMessage.h"
++class CMobilePanel;
+ 
+ VCMI_LIB_NAMESPACE_BEGIN
+ 
+@@ -224,7 +226,7 @@
+ };
+ 
+ /// Class which is responsible for showing the battle result window
+-class BattleResultWindow : public WindowBase
++class BattleResultWindow : public WindowBase, public IMobileWindow
+ {
+ private:
+ 	std::shared_ptr<CPicture> background;
+@@ -234,6 +236,13 @@
  	std::vector<std::shared_ptr<CAnimImage>> icons;
  	std::shared_ptr<CTextBox> description;
  	std::shared_ptr<VideoWidget> videoPlayer;
 + std::shared_ptr<CIntObject> mobileVideoFallback;
++ std::shared_ptr<CMobilePanel> mobilePanel;
++ std::shared_ptr<BattleResult> mobileResult;
++ std::array<std::string,2> mobileNames;
++ std::string mobileDescription;
++ int mobilePage=0;
++ void setupMobile();
  	CPlayerInterface & owner;
  
  	BattleResultResources getResources(const BattleResult & br);
+@@ -246,6 +255,10 @@
+ 	void bRepeatf(); //repeat button callback
+ 	std::function<void(int result)> resultCallback; //callback receiving which button was pressed
+ 
++ bool isMobileDialog() const override{return bool(mobilePanel);}
++ void show(Canvas &) override;
++ void showAll(Canvas &) override;
++ void keyPressed(EShortcut) override;
+ 	void activate() override;
+ };
+ 
 --- a/client/windows/InfoWindows.h
 +++ b/client/windows/InfoWindows.h
 @@ -30,6 +30,7 @@
@@ -4742,7 +4819,7 @@
  	CWindowObject::showAll(to);
  }
  
-@@ -90,5 +95,43 @@
+@@ -90,5 +95,65 @@
  			piece->setAlpha(currentAlpha);
  		currentAlpha -= animSpeed;
  	}
@@ -4751,6 +4828,25 @@
  }
 +
 +namespace {
++
++class PuzzleControl : public CIntObject
++{
++ int glyph;
++ std::string text;
++ std::function<void()> action;
++public:
++ PuzzleControl(Rect rect,int glyph,const std::string & text,std::function<void()> action):CIntObject(LCLICK),glyph(glyph),text(text),action(action){pos=rect+pos.topLeft();}
++ void clickPressed(const Point &) override{auto run=action;run();}
++ void showAll(Canvas & to) override{
++  to.drawColorBlended(pos,ColorRGBA(20,22,25,205));to.drawBorder(pos,Colors::METALLIC_GOLD);
++  Point c=pos.center();auto line=[&](Point a,Point b){to.drawLine(a,b,Colors::WHITE,Colors::WHITE);to.drawLine(a+Point(1,0),b+Point(1,0),Colors::WHITE,Colors::WHITE);};
++  if(glyph==0 || glyph==1){line(c+Point(-8,0),c+Point(8,0));if(glyph==0)line(c+Point(0,-8),c+Point(0,8));}
++  if(glyph>=2 && glyph<=5){Point d=glyph==2?Point(-1,0):glyph==3?Point(1,0):glyph==4?Point(0,-1):Point(0,1);Point n(-d.y,d.x);line(c-d*8,c+d*8);line(c+d*8,c+n*6);line(c+d*8,c-n*6);}
++  if(glyph==7){to.drawBorder(Rect(c.x-6,c.y-6,12,12),Colors::WHITE);line(c+Point(-10,0),c+Point(10,0));line(c+Point(0,-10),c+Point(0,10));}
++  if(glyph==6)to.drawText(c,FONT_SMALL,Colors::WHITE,ETextAlignment::CENTER,text);
++ }
++ void show(Canvas & to) override{showAll(to);}
++};
 +class MobilePuzzlePicture : public CIntObject
 +{
 + std::function<void(Canvas &)> paint;
@@ -4775,15 +4871,18 @@
 +  mapView->moveBy(shift);mapView->showAll(to);mapView->moveBy(-shift);
 +  for(const auto & group:{visiblePieces,piecesToRemove})for(auto & piece:group){piece->moveBy(shift);piece->showAll(to);piece->moveBy(-shift);}
 + });
-+ const std::vector<std::string> labels={"+","-","<",">","^","v",mobileText("Обзор","Fit"),mobileText("Центр","Center")};
-+ for(int i=0;i<labels.size();++i)mobilePanel->add<CMobileTownButton>(0,Rect(pos.w-152+(i%3)*48,36+(i/3)*48,44,44),labels[i],[picture,i](){
-+  if(i==0)picture->camera.magnify(1.25);if(i==1)picture->camera.magnify(0.8);
-+  if(i==2)picture->camera.pan(-64,0);if(i==3)picture->camera.pan(64,0);
-+  if(i==4)picture->camera.pan(0,-64);if(i==5)picture->camera.pan(0,64);
-+  if(i==6)picture->camera.overview=!picture->camera.overview;
-+  if(i==7){picture->camera.center=Point(591/2,544/2);picture->camera.overview=false;}
-+  picture->redraw();
-+ });
++
++ const std::array<Point,8> locations={Point(0,44),Point(96,44),Point(0,92),Point(96,92),Point(48,44),Point(48,140),Point(0,0),Point(48,92)};
++ for(int i=0;i<locations.size();++i){auto point=locations[i];
++  mobilePanel->add<PuzzleControl>(0,Rect(pos.w-152+point.x,point.y,i==6?140:44,i==6?36:44),i,i==6?mobileText("Вся карта","Whole map"):"",[picture,i](){
++   if(i==0)picture->camera.magnify(1.25);if(i==1)picture->camera.magnify(0.8);
++   if(i==2)picture->camera.pan(-64,0);if(i==3)picture->camera.pan(64,0);
++   if(i==4)picture->camera.pan(0,-64);if(i==5)picture->camera.pan(0,64);
++   if(i==6)picture->camera.overview=!picture->camera.overview;
++   if(i==7){picture->camera.center=Point(591/2,544/2);picture->camera.overview=false;}
++   picture->redraw();
++  });
++ }
 + mobilePanel->add<CMobileTownButton>(0,Rect(pos.w-152,pos.h-52,140,44),mobileText("Закрыть","Close"),[this](){close();});
 +}
 +void CPuzzleWindow::keyPressed(EShortcut key){if(mobilePanel && (key==EShortcut::GLOBAL_CANCEL || key==EShortcut::GLOBAL_RETURN || key==EShortcut::GLOBAL_ACCEPT))close();}

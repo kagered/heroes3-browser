@@ -149,3 +149,10 @@ playerField.ui.saveNameField(false);
 playerField.ui.saveNameField(true,20,100,300,44,'Save');playerInput.value='Save / One: II';playerInput.oninput();
 assert.equal(playerModule.mobileSaveNameValue,'Save  One II','save filenames retain their filename restrictions');
 console.log('PASS: player-name input reuses mobile keyboard bridge without applying filename rules');
+
+const anchoredNotice=setup({coarse:true});anchoredNotice.ui.attach({},anchoredNotice.ui.profile());
+anchoredNotice.ui.notify('Recruited: Ammo Carts × 1',true,{x:36,y:224,width:320});
+const anchored=anchoredNotice.elements.find(e=>e.className==='mobile-action-notice');
+assert.equal(anchored.style.left,'36px');assert.equal(anchored.style.top,'224px');assert.equal(anchored.style.width,'320px');
+anchoredNotice.ui.notify('Another notice');assert.equal(anchored.style.left,'');assert.equal(anchored.style.top,'');assert.equal(anchored.style.width,'');
+console.log('PASS: recruitment status stays in the native safe slot; subsequent general notices reset placement');

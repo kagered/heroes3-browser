@@ -95,9 +95,12 @@
       for(const button of panel.querySelectorAll('button[data-action]'))button.disabled=!(mask&(1<<(Number(button.dataset.action)-1)));
     }
   }
-  function notify(message,success=false) {
+  function notify(message,success=false,anchor=null) {
     if(!actionNotice)return;
     clearTimeout(noticeTimer);actionNotice.textContent=message;actionNotice.hidden=false;
+    const anchored=anchor && Number.isFinite(anchor.x) && Number.isFinite(anchor.y) && Number.isFinite(anchor.width);
+    actionNotice.classList.toggle('anchored',!!anchored);
+    Object.assign(actionNotice.style,anchored?{left:anchor.x+'px',top:anchor.y+'px',width:Math.max(120,anchor.width)+'px'}:{left:'',top:'',width:''});
     actionNotice.classList.toggle('success',success);
     noticeTimer=setTimeout(()=>{actionNotice.hidden=true;},success?4000:5000);
   }
