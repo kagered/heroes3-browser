@@ -156,3 +156,10 @@ const anchored=anchoredNotice.elements.find(e=>e.className==='mobile-action-noti
 assert.equal(anchored.style.left,'36px');assert.equal(anchored.style.top,'224px');assert.equal(anchored.style.width,'320px');
 anchoredNotice.ui.notify('Another notice');assert.equal(anchored.style.left,'');assert.equal(anchored.style.top,'');assert.equal(anchored.style.width,'');
 console.log('PASS: recruitment status stays in the native safe slot; subsequent general notices reset placement');
+
+anchoredNotice.ui.notify('Recruiting: Swordsmen × 4',false,{x:36,y:224,width:320});
+assert.equal(anchored.hidden,false);anchoredNotice.ui.dismissRecruitNotice();assert.equal(anchored.hidden,true,'closing recruitment must remove its pending status immediately');
+anchoredNotice.ui.notify('Recruited: Ammo Carts × 1',true,{x:36,y:224,width:320});assert.equal(anchored.hidden,false,'an open recruitment dialog can show the confirmed result');
+anchoredNotice.ui.dismissRecruitNotice();assert.equal(anchored.hidden,true);
+anchoredNotice.ui.notify('General status');anchoredNotice.ui.dismissRecruitNotice();assert.equal(anchored.hidden,false,'dismissal of recruitment must not hide unrelated notices');
+console.log('PASS: recruitment notice follows dialog lifetime and leaves general notices alone');

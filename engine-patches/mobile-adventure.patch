@@ -552,7 +552,7 @@
  /// Recruitment window where you can recruit creatures
  class CRecruitmentWindow : public CStatusbarWindow
  {
-@@ -94,12 +117,25 @@
+@@ -94,12 +117,26 @@
  	std::shared_ptr<CreatureCostBox> costPerTroopValue;
  	std::shared_ptr<CreatureCostBox> totalCostValue;
  
@@ -573,12 +573,13 @@
  	void showAll(Canvas & to) override;
  public:
 +	bool isMobileDialog() const { return mobileLayout; }
++ void deactivate() override;
 + void keyPressed(EShortcut key) override;
 + void onScreenResize() override;
  	const CGDwelling * const dwelling;
  	CRecruitmentWindow(const CGDwelling * Dwelling, int Level, const CArmedInstance * Dst, const std::function<void(CreatureID,int)> & Recruit, const std::function<void()> & onClose, int y_offset = 0);
  	void availableCreaturesChanged();
-@@ -107,7 +143,7 @@
+@@ -107,7 +144,7 @@
  };
  
  /// Split window where creatures can be split up into two single unit stacks
@@ -587,7 +588,7 @@
  {
  	std::function<void(int, int)> callback;
  	int leftAmount;
-@@ -124,6 +160,8 @@
+@@ -124,6 +161,8 @@
  	std::shared_ptr<CTextInput> leftInput;
  	std::shared_ptr<CTextInput> rightInput;
  
@@ -596,7 +597,7 @@
  	void setAmountText(std::string text, bool left);
  	void setAmount(int value, bool left);
  	void sliderMoved(int value);
-@@ -136,6 +174,10 @@
+@@ -136,6 +175,10 @@
  	 * leftMin, rightMin - minimal amount of creatures in each stack
  	 * leftAmount, rightAmount - amount of creatures in each stack
  	 */
@@ -607,7 +608,7 @@
  	CSplitWindow(const CCreature * creature, std::function<void(int, int)> callback, int leftMin, int rightMin, int leftAmount, int rightAmount);
  };
  
-@@ -152,9 +194,14 @@
+@@ -152,9 +195,14 @@
  	std::shared_ptr<CComponentBox> box; //skills to select
  	std::function<void(ui32)> cb;
  
@@ -622,7 +623,7 @@
  	CLevelWindow(const CGHeroInstance *hero, PrimarySkill pskill, std::vector<SecondarySkill> &skills, std::function<void(ui32)> callback);
  
  	void close() override;
-@@ -217,7 +264,8 @@
+@@ -217,7 +265,8 @@
  	void keyPressed(EShortcut key) override;
  };
  
@@ -632,7 +633,7 @@
  {
  	std::function<void()> onWindowClosed;
  
-@@ -294,6 +342,12 @@
+@@ -294,6 +343,12 @@
  	CGHeroInstance* heroToInvite;
  	void addInvite();
  
@@ -645,7 +646,7 @@
  	CTavernWindow(const CGObjectInstance * TavernObj, const std::function<void()> & onWindowClosed);
  
  	void close() override;
-@@ -303,7 +357,7 @@
+@@ -303,7 +358,7 @@
  };
  
  /// Here you can buy ships
@@ -654,7 +655,7 @@
  {
  	std::shared_ptr<CPicture> bgWater;
  	std::shared_ptr<CShowableAnim> bgShip;
-@@ -321,6 +375,12 @@
+@@ -321,6 +376,12 @@
  
  public:
  	CShipyardWindow(const TResources & cost, int state, BoatId boatType, const std::function<void()> & onBuy);
@@ -667,7 +668,7 @@
  };
  
  /// Creature transformer window
-@@ -488,7 +548,7 @@
+@@ -488,7 +549,7 @@
  	bool holdsGarrison(const CArmedInstance * army) override;
  };
  
@@ -676,7 +677,7 @@
  {
  	const CGObjectInstance * owner;
  
-@@ -508,7 +568,16 @@
+@@ -508,7 +569,16 @@
  	std::vector<std::shared_ptr<CLabel>> primSkillValues;
  	std::vector<std::shared_ptr<CAnimImage>> bestCreatures;
  	std::vector<std::shared_ptr<CLabel>> personalities;
@@ -777,7 +778,7 @@
  	onRecruit(Recruit),
  	onClose(onClose),
  	level(Level),
-@@ -237,7 +272,63 @@
+@@ -237,7 +272,64 @@
  	availableTitle = std::make_shared<CLabel>(205, 233, FONT_SMALL, ETextAlignment::CENTER, Colors::WHITE, CGI->generaltexth->allTexts[465]);
  	toRecruitTitle = std::make_shared<CLabel>(279, 233, FONT_SMALL, ETextAlignment::CENTER, Colors::WHITE, CGI->generaltexth->allTexts[16]);
  
@@ -836,13 +837,14 @@
 +}
 +void CRecruitmentWindow::notifyRecruit(const std::string & text,bool success)
 +{
++ if(!GH.windows().isTopWindow(this))return;
 +#ifdef VCMI_HTML5_BUILD
 + MAIN_THREAD_EM_ASM({if(window.HeroesMobileAdventure && window.HeroesMobileAdventure.notify)window.HeroesMobileAdventure.notify(UTF8ToString($0),!!$1,{x:$2,y:$3,width:$4});},text.c_str(),success,pos.x+16,pos.y+pos.h-96,std::max(120,pos.w-296));
 +#endif
  }
  
  void CRecruitmentWindow::availableCreaturesChanged()
-@@ -268,10 +359,15 @@
+@@ -268,10 +360,15 @@
  
  	const int creatureWidth = 102;
  
@@ -859,7 +861,7 @@
  
  	if (cards.size() > 1) // avoid division by zero
  		availableSpace /= (int)cards.size() - 1;
-@@ -291,8 +387,9 @@
+@@ -291,8 +388,9 @@
  		curx += totalCreatureWidth;
  	}
  
@@ -870,7 +872,7 @@
  
  	if(slider->getValue() == slider->getAmount())
  		slider->scrollToMax();
-@@ -306,6 +403,7 @@
+@@ -306,6 +404,7 @@
  		return;
  
  	buyButton->block(!to || !LOCPLINT->makingTurn);
@@ -878,7 +880,7 @@
  	availableValue->setText(std::to_string(selected->amount - to));
  	toRecruitValue->setText(std::to_string(to));
  
-@@ -313,7 +411,7 @@
+@@ -313,7 +412,7 @@
  }
  
  CSplitWindow::CSplitWindow(const CCreature * creature, std::function<void(int, int)> callback_, int leftMin_, int rightMin_, int leftAmount_, int rightAmount_)
@@ -887,7 +889,7 @@
  	callback(callback_),
  	leftAmount(leftAmount_),
  	rightAmount(rightAmount_),
-@@ -352,6 +450,33 @@
+@@ -352,6 +451,33 @@
  	std::string titleStr = CGI->generaltexth->allTexts[256];
  	boost::algorithm::replace_first(titleStr,"%s", creature->getNamePluralTranslated());
  	title = std::make_shared<CLabel>(150, 34, FONT_BIG, ETextAlignment::CENTER, Colors::YELLOW, titleStr);
@@ -921,7 +923,7 @@
  }
  
  void CSplitWindow::setAmountText(std::string text, bool left)
-@@ -399,12 +524,42 @@
+@@ -399,12 +525,42 @@
  }
  
  CLevelWindow::CLevelWindow(const CGHeroInstance * hero, PrimarySkill pskill, std::vector<SecondarySkill> & skills, std::function<void(ui32)> callback)
@@ -965,7 +967,7 @@
  
  	if(!skills.empty())
  	{
-@@ -438,6 +593,12 @@
+@@ -438,6 +594,12 @@
  	skillIcon = std::make_shared<CAnimImage>(AnimationPath::builtin("PSKIL42"), static_cast<int>(pskill), 0, 174, 190);
  
  	skillValue = std::make_shared<CLabel>(192, 253, FONT_MEDIUM, ETextAlignment::CENTER, Colors::WHITE, CGI->generaltexth->primarySkillNames[static_cast<int>(pskill)] + " +1");
@@ -978,7 +980,7 @@
  }
  
  void CLevelWindow::close()
-@@ -532,6 +693,7 @@
+@@ -532,6 +694,7 @@
  		videoPlayer = std::make_shared<VideoWidget>(Point(70, 56), VideoPath::builtin("TAVERN.BIK"), false);
  
  	addInvite();
@@ -986,7 +988,7 @@
  }
  
  void CTavernWindow::addInvite()
-@@ -781,6 +943,7 @@
+@@ -781,6 +944,7 @@
  
  	title = std::make_shared<CLabel>(164, 27,  FONT_BIG, ETextAlignment::CENTER, Colors::YELLOW, CGI->generaltexth->jktexts[13]);
  	costLabel = std::make_shared<CLabel>(164, 220, FONT_MEDIUM, ETextAlignment::CENTER, Colors::WHITE, CGI->generaltexth->jktexts[14]);
@@ -994,7 +996,7 @@
  }
  
  void CTransformerWindow::CItem::move()
-@@ -1464,6 +1627,74 @@
+@@ -1464,6 +1628,74 @@
  
  		counter++;
  	}
@@ -1069,7 +1071,7 @@
  }
  
  CObjectListWindow::CItem::CItem(CObjectListWindow * _parent, size_t _id, std::string _text)
-@@ -1739,3 +1970,45 @@
+@@ -1739,3 +1971,53 @@
  {
  	exit(true);
  }
@@ -1115,6 +1117,14 @@
 +void CShipyardWindow::show(Canvas & to){if(mobilePanel){mobilePanel->resize(this,[this](){setupMobile();},320);mobilePanel->show(to);}else CWindowObject::show(to);}
 +void CShipyardWindow::showAll(Canvas & to){if(mobilePanel)mobilePanel->showAll(to);else CWindowObject::showAll(to);}
 +void CShipyardWindow::keyPressed(EShortcut key){if(!mobilePanel)return;if(key==EShortcut::GLOBAL_CANCEL)close();else if(key==EShortcut::GLOBAL_ACCEPT && !build->isBlocked()){build->clickPressed(build->pos.center());build->clickReleased(build->pos.center());}}
++
++void CRecruitmentWindow::deactivate()
++{
++#ifdef VCMI_HTML5_BUILD
++ if(mobileLayout)MAIN_THREAD_EM_ASM({if(window.HeroesMobileAdventure && window.HeroesMobileAdventure.dismissRecruitNotice)window.HeroesMobileAdventure.dismissRecruitNotice();});
++#endif
++ CStatusbarWindow::deactivate();
++}
 --- a/client/windows/CCastleInterface.h
 +++ b/client/windows/CCastleInterface.h
 @@ -8,6 +8,7 @@

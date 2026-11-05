@@ -281,3 +281,7 @@ BattleResultWindow is now a native mobile window, so opening it retains the full
 Recruitment feedback is anchored in the empty strip below the creature preview and above the buy controls, rather than at the screen bottom. A compact single-line status cannot cover the Recruit button; long text ellipsizes visually while the full live-status text remains available. General notifications reset anchored positioning. A JS regression checks native-slot placement and reset.
 
 Puzzle controls use drawn plus/minus, direction arrows and a center crosshair with a separate wide Whole map button. This replaces the cramped text grid, ambiguous ASCII arrows and wrapped Center caption. Native camera behavior and puzzle masks are unchanged. Phone checks for final result sizing, feedback placement and control appearance remain pending; interactive browser QA is unavailable.
+
+### Recruitment notice lifetime
+
+Anchored recruitment feedback is dismissed immediately when its dialog deactivates (including the town-recruitment path that automatically closes after purchase). A late stock update cannot show feedback from an inactive recruitment window. Persistent war-machine recruitment still shows its status while open. JS regression checks immediate dismissal and isolation from unrelated notices. Physical phone verification remains pending.

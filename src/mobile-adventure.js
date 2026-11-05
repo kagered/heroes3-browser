@@ -95,11 +95,17 @@
       for(const button of panel.querySelectorAll('button[data-action]'))button.disabled=!(mask&(1<<(Number(button.dataset.action)-1)));
     }
   }
+  let noticeAnchored=false;
+  function dismissRecruitNotice() {
+    if(!actionNotice || !noticeAnchored)return;
+    clearTimeout(noticeTimer);actionNotice.hidden=true;noticeAnchored=false;
+  }
   function notify(message,success=false,anchor=null) {
     if(!actionNotice)return;
     clearTimeout(noticeTimer);actionNotice.textContent=message;actionNotice.hidden=false;
     const anchored=anchor && Number.isFinite(anchor.x) && Number.isFinite(anchor.y) && Number.isFinite(anchor.width);
-    actionNotice.classList.toggle('anchored',!!anchored);
+    noticeAnchored=!!anchored;
+    actionNotice.classList.toggle('anchored',noticeAnchored);
     Object.assign(actionNotice.style,anchored?{left:anchor.x+'px',top:anchor.y+'px',width:Math.max(120,anchor.width)+'px'}:{left:'',top:'',width:''});
     actionNotice.classList.toggle('success',success);
     noticeTimer=setTimeout(()=>{actionNotice.hidden=true;},success?4000:5000);
@@ -179,7 +185,7 @@
     const b=document.createElement('button');b.type='button';b.textContent=text('Экран ⛶','Screen ⛶');b.onclick=()=>{if(isIPad() && !navigator.standalone && !document.fullscreenElement)screenHelp.hidden=false;else void fullscreen();};return b;
   }
   window.HeroesMobileAdventure = {
-    get active(){return active;},get session(){return session;},send,profile,remapPoint,notify,saveNameField,showFullText,
+    get active(){return active;},get session(){return session;},send,profile,remapPoint,notify,dismissRecruitNotice,saveNameField,showFullText,
     prepareDisplay(){if(touchDevice && !isIPad() && profile())void fullscreen(false);},
     attach(options,viewport) {
       module=options;session=true;
