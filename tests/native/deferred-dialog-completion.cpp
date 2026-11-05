@@ -2,6 +2,12 @@
 #include <cassert>
 #include <iostream>
 int main(){
+ assert(deferMobileScenarioCompletion(true,1,false,true));
+ assert(deferMobileScenarioCompletion(true,1,false,false));
+ assert(deferMobileScenarioCompletion(true,1,true,false));
+ assert(!deferMobileScenarioCompletion(true,1,true,true));
+ assert(!deferMobileScenarioCompletion(false,1,true,false));
+ assert(!deferMobileScenarioCompletion(true,2,true,false));
  DeferredDialogCompletion gate;int results=0;
  assert(!gate.takeReady(true,false));
  assert(gate.schedule([&]{++results;}));

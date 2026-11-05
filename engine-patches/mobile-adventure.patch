@@ -3642,20 +3642,27 @@
  	assert(adventureInt);
  
  	// Handles mouse and key input
-@@ -1575,6 +1615,12 @@
+@@ -1573,8 +1613,17 @@
+ 
+ 	if (player == playerID)
  	{
- 		if (victoryLossCheckResult.loss())
- 			showInfoDialog(CGI->generaltexth->allTexts[95]);
+-		if (victoryLossCheckResult.loss())
+-			showInfoDialog(CGI->generaltexth->allTexts[95]);
 +
-+  if(CMessage::isMobileSession() && CSH->howManyPlayerInterfaces()==1 && !cb->getStartInfo()->campState)
++  if(deferMobileScenarioCompletion(CMessage::isMobileSession(),CSH->howManyPlayerInterfaces(),bool(cb->getStartInfo()->campState),victoryLossCheckResult.victory()))
 +  {
-+   makingTurn=true; // keep queued end-of-scenario messages responsive until acknowledged
++   makingTurn=true;
++   // Queue the elimination notice behind any battle result/confirmation already
++   // on screen. Do not wait for it while applying the terminal network packet.
++   if(victoryLossCheckResult.loss() && !(settings["session"]["autoSkip"].Bool() && !GH.isKeyboardShiftDown()))
++    dialogs.push_back(CInfoWindow::create(CGI->generaltexth->allTexts[95],playerID,{}));
 +   return;
 +  }
++  if(victoryLossCheckResult.loss())showInfoDialog(CGI->generaltexth->allTexts[95]);
  
  		assert(GH.curInt == LOCPLINT);
  		auto previousInterface = LOCPLINT; //without multiple player interfaces some of lines below are useless, but for hotseat we wanna swap player interface temporarily
-@@ -1818,6 +1864,9 @@
+@@ -1818,6 +1867,9 @@
  		CGI->generaltexth->allTexts[68],
  		[]()
  		{
@@ -3665,7 +3672,7 @@
  			CSH->endGameplay();
  			CMM->menu->switchToTab("load");
  		},
-@@ -1855,3 +1904,13 @@
+@@ -1855,3 +1907,13 @@
  {
  	return std::nullopt;
  }
@@ -3850,7 +3857,7 @@
  
  	if(lastHumanEndsGame || localHumanWinsGame)
  	{
-+  if(CMessage::isMobileSession() && LOCPLINT && CSH->howManyPlayerInterfaces()==1 && !cl.gameState()->getStartInfo()->campState)
++  if(LOCPLINT && deferMobileScenarioCompletion(CMessage::isMobileSession(),CSH->howManyPlayerInterfaces(),bool(cl.gameState()->getStartInfo()->campState),pack.victoryLossCheckResult.victory()))
 +  {
 +   LOCPLINT->deferMobileGameEnd([player=pack.player,victory=pack.victoryLossCheckResult.victory(),statistic=pack.statistic]()
 +   {
@@ -3904,7 +3911,7 @@
  
 --- /dev/null
 +++ b/client/gui/DeferredDialogCompletion.h
-@@ -0,0 +1,20 @@
+@@ -0,0 +1,27 @@
 +/* Nonblocking dialog completion gate. GPL v2.0 or later, as the VCMI client. */
 +#pragma once
 +#include <functional>
@@ -3925,6 +3932,13 @@
 +  auto ready=std::move(completion);completion={};return ready;
 + }
 +};
++
++// Campaign victories keep their original next-scenario flow. Campaign defeats,
++// like standalone completion, end the session and can use browser teardown.
++inline bool deferMobileScenarioCompletion(bool mobile,int humans,bool campaign,bool victory)
++{
++ return mobile && humans==1 && (!campaign || !victory);
++}
 --- a/client/eventsSDL/InputHandler.cpp
 +++ b/client/eventsSDL/InputHandler.cpp
 @@ -10,6 +10,7 @@

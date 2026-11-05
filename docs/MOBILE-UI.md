@@ -301,3 +301,9 @@ The mobile drawing path incorrectly disabled BattleHero objects along with legac
 The tablet-only crop came from the legacy detached queue: at render heights >=700 the desktop layout expands/repositions the battle window for an 85px queue. The mobile 800x556 render buffer assumes the battlefield has no such offset, so its bottom was clipped. Mobile now always uses the embedded queue and disables the optional detached-small-queue placement. This preserves the same source origin on phone and iPad; desktop queue preferences are unchanged.
 
 `python3 tests/native/mobile-battle-queue-layout.py /path/to/patched/vcmi` executes the actual createQueue policy for phone/tablet render heights, all queue-size settings and hidden/visible queues, and checks the original detached desktop behavior. Physical iPad verification of the full bottom row remains pending.
+
+### Campaign defeat completion
+
+A physical campaign-defeat trace stopped at `disposing previous game windows`, matching the earlier Grail window-destruction freeze. The existing nonblocking/retired-window completion path previously excluded all campaigns. A shared completion policy now includes campaign defeats while keeping campaign victories on their original next-scenario flow. Standalone completion remains supported; desktop and multiple-human paths retain their original behavior.
+
+The mobile elimination notice is queued behind any pending battle result rather than waiting synchronously during application of the terminal packet. The completion gate waits for queued and active dialogs before retiring the game windows and opening the result screen. The native gate regression now covers standalone win/loss, campaign loss, campaign-win exclusion and desktop/multiple-human exclusions. Physical campaign retreat/defeat replay remains pending.
