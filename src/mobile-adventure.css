@@ -46,6 +46,8 @@
 .mobile-action-notice.success{background:#183422f5;border-color:#85c49b;color:#d0f5dc}
 .mobile-display-help button+button{margin-left:10px}
 
+#game.mobile-adventure-session.mobile-text-editing canvas{visibility:hidden}
+
 /* A real browser field lets iPad open its keyboard directly from a finger tap. */
 .mobile-save-name{position:absolute;z-index:7;box-sizing:border-box;margin:0;padding:8px 12px;border:1px solid #d2b574;border-radius:2px;background:#292016;color:#fff1c8;font:18px/1.3 system-ui;touch-action:manipulation;pointer-events:auto;outline-offset:2px}
 .mobile-save-name:focus{outline:2px solid #ffe291;background:#34291c}

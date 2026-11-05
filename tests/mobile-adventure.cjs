@@ -103,6 +103,7 @@ console.log('PASS: browser save-name editing, Cyrillic, filtering, focus preserv
 const keyboard=setup({coarse:true,userAgent:'iPad Safari',maxTouchPoints:5});const keyboardModule={};keyboard.ui.attach(keyboardModule,keyboard.ui.profile());
 keyboard.ui.saveNameField(true,20,220,320,44,'New save');
 const keyboardInput=keyboard.elements.find(e=>e.className==='mobile-save-name');keyboardInput.focus();assert.equal(keyboardModule.mobileTextEditing,true);
+assert(keyboard.classes.has('mobile-text-editing'),'the old game image is hidden while typing');
 const beforeKeyboardHeight=keyboardModule.mobileViewport.height;keyboard.window.visualViewport={width:844,height:220,offsetTop:100,offsetLeft:0};keyboard.listeners.resize();
 assert.equal(keyboardModule.mobileViewport.height,beforeKeyboardHeight,"typing must not resize the game");
 assert.equal(keyboardInput.style.top,"112px","input stays in the visible keyboard viewport");
@@ -116,6 +117,8 @@ console.log('PASS: iPad keyboard resize and dialog-layer changes retain filename
 
 keyboardInput.blur();assert.equal(keyboardModule.mobileTextEditing,false,"leaving the name field restores normal game layout");
 
+assert(!keyboard.classes.has('mobile-text-editing'),'the game image returns when typing ends');
+
 const reader=setup({coarse:true});reader.ui.attach({},reader.ui.profile());
 const whole='Начало\n'+('Длинное сообщение. '.repeat(200))+'КОНЕЦ';reader.ui.showFullText(whole);
 const full=reader.elements.find(e=>e.className==='mobile-full-text');assert.equal(full.children[0].textContent,whole);assert.equal(full.hidden,false);full.children[1].onclick();assert.equal(full.hidden,true);
@@ -126,7 +129,7 @@ turnModule.mobileTurnState(0,0,1,1,1);const banner=turns.elements.find(e=>e.clas
 turnModule.mobileTurnState(1,1,1,1,1);assert.equal(banner.children[1].children[0].textContent,"Blue player's turn");
 turnModule.mobileTurnState(2,0,2,1,1);assert.equal(banner.children[1].children[0].textContent,'Your turn');assert.equal(banner.children[1].children[1].textContent,'Month 1 · Week 1 · Day 2');const oldTurnTimer=turns.timers.at(-1);
 turnModule.mobileTurnState(0,0,2,1,1);oldTurnTimer();assert.equal(banner.hidden,false,'stale ready timer must not hide the next AI turn');
-turnModule.mobileAdventureState(false,0,false);assert.equal(banner.hidden,true,'turn banner stays out of classic battle windows');turnModule.mobileAdventureState(true,0xffff);assert.equal(banner.hidden,false);
+turnModule.mobileAdventureState(false,0,true);assert.equal(banner.hidden,true,'turn banner stays out of mobile battle windows');turnModule.mobileAdventureState(true,0xffff);assert.equal(banner.hidden,false);
 turnModule.mobileTurnState(2,0,3,1,1);turns.timers.at(-1)();assert.equal(banner.hidden,true,'your-turn notice dismisses without blocking gameplay');
 console.log('PASS: engine turn phases, player color/date, stale timers and battle visibility');
 

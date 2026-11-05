@@ -82,7 +82,7 @@
     if(!initialized || active!==value || mapOverlay!==overlay || popup!==isPopup) {
       initialized=true;active=value;mapOverlay=overlay;popup=isPopup;
       if(active)saveNameField(false);
-      if(turnBanner)turnBanner.hidden=!turnVisible || !(active || mapOverlay);
+      if(turnBanner)turnBanner.hidden=!turnVisible || !active;
       const game=document.getElementById('game');game.classList.toggle('mobile-adventure-active',active || mapOverlay);
       game.scrollTop=0;game.scrollLeft=0;
       mapTop.hidden=!(active || popup);bottom.hidden=!(active || popup);dialogTop.hidden=active || popup;
@@ -118,6 +118,7 @@
     const editing=document.activeElement===saveNameInput;
     const visual=window.visualViewport;
     const game=document.getElementById('game');
+    game.classList.toggle('mobile-text-editing',editing);
     const rect=game.getBoundingClientRect();
     const [x,y,width,height]=saveNameRect;
     if(editing) {
@@ -167,7 +168,7 @@
     const eng=['Red','Blue','Tan','Green','Orange','Purple','Teal','Pink'];
     const index=Number.isInteger(player)&&player>=0&&player<8?player:0;
     turnBanner.style.setProperty('--turn-player-color',colors[index]);
-    turnBanner.classList.toggle('turn-ready',phase===2);turnVisible=true;turnBanner.hidden=!(active || mapOverlay);
+    turnBanner.classList.toggle('turn-ready',phase===2);turnVisible=true;turnBanner.hidden=!active;
     turnHeading.textContent=phase===2?text('Твой ход','Your turn'):phase===1?text('Ход '+ru[index]+' игрока',eng[index]+" player's turn"):text('Смена хода','Passing the turn');
     turnDetail.textContent=text('Месяц '+month+' · Неделя '+week+' · День '+day,'Month '+month+' · Week '+week+' · Day '+day);
     if(phase===2)turnTimer=setTimeout(()=>{if(generation===turnGeneration){turnVisible=false;turnBanner.hidden=true;}},2000);

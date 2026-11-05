@@ -1715,8 +1715,8 @@
 + auto nextHero=mobilePanel->add<CMobileTownButton>(-1,Rect(pos.w-140,0,128,44),mobileText("Другой герой","Next hero"),[this]()
 + {
 +  int count=LOCPLINT->cb->howManyHeroes(false);if(count<2)return;
-+  int serial=LOCPLINT->cb->getHeroSerial(curHero,false);
-+  auto next=LOCPLINT->cb->getHeroBySerial((serial+1)%count,false);
++  // getHeroSerial returns a one-based position; getHeroBySerial takes an index.
++  auto next=LOCPLINT->cb->getHeroBySerial(std::max(0,LOCPLINT->cb->getHeroSerial(curHero,false))%count,false);
 +  close();GH.windows().createAndPushWindow<CHeroWindow>(next);
 + },LOCPLINT->cb->howManyHeroes(false)>1);
 + auto prev=mobilePanel->add<CMobileTownButton>(-1,Rect(pos.w-140,0,60,44),"<",[this](){if(mobileSection==1)mobileSkillPage=std::max(0,mobileSkillPage-1);else mobileArtPage=std::max(0,mobileArtPage-1);layoutMobileItems();});
@@ -2541,7 +2541,7 @@
 +}
 --- a/client/widgets/CGarrisonInt.cpp
 +++ b/client/widgets/CGarrisonInt.cpp
-@@ -17,6 +17,7 @@
+@@ -17,9 +17,11 @@
  #include "../gui/CGuiHandler.h"
  #include "../gui/WindowHandler.h"
  #include "../render/IImage.h"
@@ -2549,7 +2549,11 @@
  #include "../windows/CCreatureWindow.h"
  #include "../windows/CWindowWithArtifacts.h"
  #include "../windows/GUIClasses.h"
-@@ -35,12 +36,22 @@
++#include "../windows/InfoWindows.h"
+ #include "../CGameInfo.h"
+ #include "../CPlayerInterface.h"
+ 
+@@ -35,12 +37,22 @@
  #include "../../lib/gameState/CGameState.h"
  #include "../../lib/gameState/UpgradeInfo.h"
  
@@ -2572,7 +2576,22 @@
  }
  
  void CGarrisonSlot::hover (bool on)
-@@ -587,6 +598,17 @@
+@@ -344,7 +356,13 @@
+ 				refr = split();
+ 			}
+ 			else if(!creature && lastHeroStackSelected) // split all except last creature
+-				LOCPLINT->cb->splitStack(selectedObj, owner->army(upg), selection->ID, ID, selection->myStack->count - 1);
++			{
++				const auto count = selection->myStack->count;
++				if (count > 1)
++					LOCPLINT->cb->splitStack(selectedObj, owner->army(upg), selection->ID, ID, count - 1);
++				else if (CMessage::isMobileSession())
++					CInfoWindow::showInfoDialog(CGI->generaltexth->tcommands[5], {});
++			}
+ 			else if(creature != selection->creature) // swap
+ 				LOCPLINT->cb->swapCreatures(owner->army(upg), selectedObj, ID, selection->ID);
+ 			else if(lastHeroStackSelected) // merge last stack to other hero stack
+@@ -587,6 +605,17 @@
  		slot->update();
  }
  
@@ -3569,7 +3588,7 @@
  		makingTurn = false;
 +
 +#ifdef VCMI_HTML5_BUILD
-+ MAIN_THREAD_EM_ASM({if(Module.mobileAdventureUI && Module.mobileTurnState)Module.mobileTurnState($0,$1,$2,$3,$4);},0,player.getNum(),cb->getDate(Date::DAY_OF_WEEK),cb->getDate(Date::WEEK),cb->getDate(Date::MONTH));
++ MAIN_THREAD_ASYNC_EM_ASM({if(Module.mobileAdventureUI && Module.mobileTurnState)Module.mobileTurnState($0,$1,$2,$3,$4);},0,player.getNum(),cb->getDate(Date::DAY_OF_WEEK),cb->getDate(Date::WEEK),cb->getDate(Date::MONTH));
 +#endif
  		closeAllDialogs();
  
@@ -3581,7 +3600,7 @@
 +  {
 +
 +#ifdef VCMI_HTML5_BUILD
-+ MAIN_THREAD_EM_ASM({if(Module.mobileAdventureUI && Module.mobileTurnState)Module.mobileTurnState($0,$1,$2,$3,$4);},1,player.getNum(),cb->getDate(Date::DAY_OF_WEEK),cb->getDate(Date::WEEK),cb->getDate(Date::MONTH));
++ MAIN_THREAD_ASYNC_EM_ASM({if(Module.mobileAdventureUI && Module.mobileTurnState)Module.mobileTurnState($0,$1,$2,$3,$4);},1,player.getNum(),cb->getDate(Date::DAY_OF_WEEK),cb->getDate(Date::WEEK),cb->getDate(Date::MONTH));
 +#endif
  			adventureInt->onEnemyTurnStarted(player, isHuman);
 +  }
@@ -3594,7 +3613,7 @@
  
 +
 +#ifdef VCMI_HTML5_BUILD
-+ MAIN_THREAD_EM_ASM({if(Module.mobileAdventureUI && Module.mobileTurnState)Module.mobileTurnState($0,$1,$2,$3,$4);},2,playerID.getNum(),cb->getDate(Date::DAY_OF_WEEK),cb->getDate(Date::WEEK),cb->getDate(Date::MONTH));
++ MAIN_THREAD_ASYNC_EM_ASM({if(Module.mobileAdventureUI && Module.mobileTurnState)Module.mobileTurnState($0,$1,$2,$3,$4);},2,playerID.getNum(),cb->getDate(Date::DAY_OF_WEEK),cb->getDate(Date::WEEK),cb->getDate(Date::MONTH));
 +#endif
  	acceptTurn(queryID, hotseatWait);
  }
@@ -4617,6 +4636,18 @@
  	GH.windows().pushWindow(windowObject);
  	windowObject->blockUI(true);
  	windowObject->updateQueue();
+@@ -134,7 +135,10 @@
+ 	{
+ 		CCS->soundh->setCallback(battleIntroSoundChannel, onIntroPlayed);
+ 
+-		if (settings["gameTweaks"]["skipBattleIntroMusic"].Bool())
++		// Keep the intro sound, but do not hold the first action on its completion
++		// callback when a local mobile player is defending against the AI.
++		const bool mobileDefending = !attackerInt && defenderInt && windowObject->isMobileDialog();
++		if (mobileDefending || settings["gameTweaks"]["skipBattleIntroMusic"].Bool())
+ 			openingEnd();
+ 	}
+ 	else // failed to play sound
 --- a/client/battle/BattleWindow.cpp
 +++ b/client/battle/BattleWindow.cpp
 @@ -9,6 +9,8 @@
@@ -5016,3 +5047,222 @@
 + void pan(int x,int y){overview=false;center=Point(std::clamp(center.x+x,0,size.x),std::clamp(center.y+y,0,size.y));}
 + void magnify(double factor){overview=false;zoom=std::clamp(zoom*factor,1.0,3.0);}
 +};
+--- a/client/adventureMap/CInGameConsole.cpp
++++ b/client/adventureMap/CInGameConsole.cpp
+@@ -47,14 +47,17 @@
+ 
+ void CInGameConsole::show(Canvas & to)
+ {
+-	if (LOCPLINT->cingconsole != this)
++	if (LOCPLINT->cingconsole != this || texts.empty())
+ 		return;
+ 
+ 	int number = 0;
++	const Rect mobileArea = CMessage::mobileScreenArea();
++	// The touch action bar covers the bottom of the full-size adventure canvas.
++	const int bottom = mobileArea.w > 0 ? std::min(pos.h, mobileArea.y + mobileArea.h) : pos.h;
+ 
+ 	for(auto & text : texts)
+ 	{
+-		Point leftBottomCorner(0, pos.h);
++		Point leftBottomCorner(0, bottom);
+ 		Point textPosition(leftBottomCorner.x + 50, leftBottomCorner.y - texts.size() * 20 - 80 + number * 20);
+ 
+ 		to.drawText(pos.topLeft() + textPosition, FONT_MEDIUM, Colors::GREEN, ETextAlignment::TOPLEFT, text.text);
+--- a/client/windows/CExchangeWindow.h
++++ b/client/windows/CExchangeWindow.h
+@@ -10,11 +10,13 @@
+ #pragma once
+ 
+ #include "CWindowWithArtifacts.h"
++#include "CMessage.h"
+ #include "../widgets/CExchangeController.h"
+ 
+ class CGarrisonSlot;
++class CMobilePanel;
+ 
+-class CExchangeWindow : public CStatusbarWindow, public IGarrisonHolder, public CWindowWithArtifacts
++class CExchangeWindow : public CStatusbarWindow, public IGarrisonHolder, public CWindowWithArtifacts, public IMobileWindow
+ {
+ 	std::array<std::shared_ptr<CLabel>, 2> titles;
+ 	std::vector<std::shared_ptr<CAnimImage>> primSkillImages;//shared for both heroes
+@@ -53,6 +55,7 @@
+ 	std::shared_ptr<CButton> backpackButtonLeft;
+ 	std::shared_ptr<CButton> backpackButtonRight;
+ 	CExchangeController controller;
++	const bool equipmentView;
+ 
+ 	void creatureArrowButtonCallback(bool leftToRight, SlotID slotID);
+ 	void moveArtifactsCallback(bool leftToRight);
+@@ -65,9 +68,16 @@
+ 	std::array<std::shared_ptr<CArtifactsOfHeroMain>, 2> artifs;
+ 
+ 	const CGarrisonSlot * getSelectedSlotID() const;
++	std::shared_ptr<CMobilePanel> mobilePanel;
++	void setupMobile();
++	void closeMobile();
+ 
+ public:
+-	CExchangeWindow(ObjectInstanceID hero1, ObjectInstanceID hero2, QueryID queryID);
++	CExchangeWindow(ObjectInstanceID hero1, ObjectInstanceID hero2, QueryID queryID, bool allowMobile = true);
++	bool isMobileDialog() const override { return bool(mobilePanel); }
++	void requestMobileResize() override;
++	void show(Canvas & to) override;
++	void showAll(Canvas & to) override;
+ 
+ 	void keyPressed(EShortcut key) override;
+ 
+--- a/client/windows/CExchangeWindow.cpp
++++ b/client/windows/CExchangeWindow.cpp
+@@ -9,6 +9,7 @@
+  */
+ #include "StdInc.h"
+ #include "CExchangeWindow.h"
++#include "MobileWindow.h"
+ 
+ #include "CHeroBackpackWindow.h"
+ 
+@@ -43,9 +44,10 @@
+ 	return CResourceHandler::get()->existsResource(ImagePath::builtin("SPRITES/" + QUICK_EXCHANGE_BG));
+ }
+ 
+-CExchangeWindow::CExchangeWindow(ObjectInstanceID hero1, ObjectInstanceID hero2, QueryID queryID)
++CExchangeWindow::CExchangeWindow(ObjectInstanceID hero1, ObjectInstanceID hero2, QueryID queryID, bool allowMobile)
+ 	: CWindowObject(PLAYER_COLORED | BORDERED, ImagePath::builtin(isQuickExchangeLayoutAvailable() ? QUICK_EXCHANGE_BG : "TRADE2")),
+-	controller(hero1, hero2)
++	controller(hero1, hero2),
++	equipmentView(!allowMobile)
+ {
+ 	const bool qeLayout = isQuickExchangeLayoutAvailable();
+ 
+@@ -262,6 +264,78 @@
+ 	}
+ 
+ 	CExchangeWindow::update();
++	if (allowMobile)
++		setupMobile();
++}
++
++void CExchangeWindow::setupMobile()
++{
++	if (CMessage::mobileScreenArea().h < 260 || prepareMobileWindow(*this, mobilePanel, 380, true).w == 0)
++		return;
++
++	OBJECT_CONSTRUCTION;
++	mobilePanel = std::make_shared<CMobilePanel>(pos.dimensions(), mobileText("Обмен войсками", "Army exchange"), std::vector<std::string>{});
++	const int gap = 85;
++	const int slotSpacing = 8;
++	const int rowWidth = 7 * 58 + 6 * slotSpacing;
++	garr = mobilePanel->add<CGarrisonInt>(0, Point((pos.w - rowWidth) / 2, 61), slotSpacing, Point(0, gap),
++		heroInst[0], heroInst[1], true, false);
++	for (int side = 0; side < 2; ++side)
++		mobilePanel->add<CLabel>(0, pos.w / 2, 46 + side * gap, FONT_MEDIUM, ETextAlignment::CENTER, Colors::YELLOW, heroInst[side]->getNameTranslated());
++
++	mobilePanel->painters.push_back([this](Canvas & canvas)
++	{
++		for (auto * child : garr->children)
++			if (auto * slot = dynamic_cast<CGarrisonSlot *>(child))
++				canvas.drawBorder(slot->pos, Colors::METALLIC_GOLD);
++	});
++
++	const int buttonWidth = (pos.w - 40) / 3;
++	const int buttonY = pos.h - 47;
++	auto split = mobilePanel->add<CMobileTownButton>(0, Rect(12, buttonY, buttonWidth, 40), mobileText("Разделить", "Split"),
++		[this]() { garr->splitClick(); });
++	mobilePanel->refreshers.push_back([this, split]()
++	{
++		const auto * slot = garr->getSelection();
++		split->setAvailable(slot && slot->our());
++		split->setSelected(garr->getSplittingMode());
++	});
++	mobilePanel->add<CMobileTownButton>(0, Rect(20 + buttonWidth, buttonY, buttonWidth, 40), mobileText("Снаряжение", "Equipment"), [this]()
++	{
++		GH.windows().createAndPushWindow<CExchangeWindow>(heroInst[0]->id, heroInst[1]->id, QueryID(-1), false);
++	});
++	mobilePanel->add<CMobileTownButton>(0, Rect(28 + 2 * buttonWidth, buttonY, buttonWidth, 40), mobileText("Готово", "Done"),
++		[this]() { closeMobile(); });
++	mobilePanel->select(0);
++}
++
++void CExchangeWindow::closeMobile()
++{
++	auto button = quit;
++	button->clickPressed(button->pos.center());
++	button->clickReleased(button->pos.center());
++}
++
++void CExchangeWindow::requestMobileResize()
++{
++	if (mobilePanel)
++		mobilePanel->resize(this, [this]() { setupMobile(); }, 380);
++}
++
++void CExchangeWindow::show(Canvas & to)
++{
++	if (mobilePanel)
++		mobilePanel->show(to);
++	else
++		CStatusbarWindow::show(to);
++}
++
++void CExchangeWindow::showAll(Canvas & to)
++{
++	if (mobilePanel)
++		mobilePanel->showAll(to);
++	else
++		CStatusbarWindow::showAll(to);
+ }
+ 
+ void CExchangeWindow::creatureArrowButtonCallback(bool leftToRight, SlotID slotId)
+@@ -301,6 +375,12 @@
+ 
+ void CExchangeWindow::keyPressed(EShortcut key)
+ {
++	if ((mobilePanel || equipmentView) && (key == EShortcut::GLOBAL_CANCEL || key == EShortcut::GLOBAL_ACCEPT))
++	{
++		closeMobile();
++		return;
++	}
++
+ 	switch (key)
+ 	{
+ 		case EShortcut::EXCHANGE_ARMY_TO_LEFT:
+--- a/AI/Nullkiller/AIGateway.cpp
++++ b/AI/Nullkiller/AIGateway.cpp
+@@ -1258,6 +1258,14 @@
+ 
+ bool AIGateway::moveHeroToTile(int3 dst, HeroPtr h)
+ {
++	const auto stillOwnsHero = [&]()
++	{
++		const auto * hero = cb->getHero(h.hid);
++		return hero && hero == h.h && hero->getOwner() == playerID;
++	};
++	if (!stillOwnsHero())
++		throw cannotFulfillGoalException("Hero is no longer controlled by this player");
++
+ 	if(h->inTownGarrison && h->visitedTown)
+ 	{
+ 		cb->swapGarrisonHero(h->visitedTown);
+@@ -1269,7 +1277,7 @@
+ 	auto afterMovementCheck = [&]() -> void
+ 	{
+ 		waitTillFree(); //movement may cause battle or blocking dialog
+-		if(!h)
++		if(!stillOwnsHero())
+ 		{
+ 			lostHero(h);
+ 			teleportChannelProbingList.clear();
+--- a/server/CGameHandler.cpp
++++ b/server/CGameHandler.cpp
+@@ -1486,8 +1486,8 @@
+ void CGameHandler::wrongPlayerMessage(CPackForServer * pack, PlayerColor expectedplayer)
+ {
+ 	auto str = MetaString::createFromTextID("vcmi.server.errors.wrongIdentified");
+-	str.appendName(pack->player);
+-	str.appendName(expectedplayer);
++	str.replaceName(pack->player);
++	str.replaceName(expectedplayer);
+ 	logNetwork->error(str.toString());
+ 
+ 	if(pack->c)
