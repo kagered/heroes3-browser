@@ -289,3 +289,9 @@ Anchored recruitment feedback is dismissed immediately when its dialog deactivat
 ### Two-second header feedback
 
 This supersedes dialog-anchored/dismiss-on-close notices. Feedback is now an inline flex item between controls in the visible top toolbar, with a two-second lifetime. It survives automatic recruitment closure and follows the currently visible map/dialog header. On the map it briefly uses the hero HUD slot, which returns when the status expires. Toolbar buttons retain their own space; long text ellipsizes within the remaining width. The legacy engine dismiss callback is retained as a no-op for compatibility with immutable cached engine builds. Tests cover actual DOM reparenting, two-second expiry, dialog-close survival and HUD restoration. No native engine behavior changes are needed.
+
+### Autocombat spell-animation lifetime
+
+The mobile drawing path incorrectly disabled BattleHero objects along with legacy UI. BattleHero owns TIME events, and HeroCastAnimation completes through its phase-finished callback; disabling those ticks can leave a cast/animation waiting indefinitely. Mobile setup/drawing now leaves both hero objects active. BattleHero only registers TIME events, so retaining it does not introduce a second set of unmapped click handlers. This addresses a concrete animation-lifetime bug; the reported Auto freeze still requires physical-device confirmation.
+
+`python3 tests/native/mobile-battle-animation-lifetime.py /path/to/patched/vcmi` executes the actual mobile drawing and hero tick methods in a lightweight lifecycle fixture. It rejects the previous hero-disabling implementation and confirms both heroes keep completing phases while legacy controls remain hidden. Native build/public checks still do not substitute for an on-device Auto/spell replay.

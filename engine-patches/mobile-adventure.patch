@@ -4739,14 +4739,14 @@
 + {ObjectConstruction capture(mobileMenu.get());auto close=std::make_shared<BattleQuickTile>(Rect(mw-100,mh-48,92,44),mobileText("Закрыть","Close"),"",[this](){toggleMobileMenu();});mobileRefreshers.push_back([close](){close->setAvailable(true);});}
 + mobileMenu->disable();
 + owner.fieldController->enable();
-+ if(owner.attackingHero)owner.attackingHero->disable();if(owner.defendingHero)owner.defendingHero->disable();
++ // BattleHero owns TIME events needed to finish spell animations; keep it active.
 +}
 +void BattleWindow::showMobile(Canvas & to)
 +{
 + const auto area=CMessage::mobileScreenArea();
 + if(area.w!=pos.w || area.h!=pos.h){setupMobile();GH.windows().totalRedraw();}
 + for(auto child:children)if(child!=mobilePanel.get() && child!=owner.fieldController.get())child->disable();
-+ if(owner.attackingHero)owner.attackingHero->disable();if(owner.defendingHero)owner.defendingHero->disable();
++ // BattleHero owns TIME events needed to finish spell animations; keep it active.
 + to.drawColor(mobileFieldBounds,ColorRGBA(19,17,14,255));
 + static_cast<CIntObject *>(owner.fieldController.get())->show(*mobileBuffer);
 + if(settings["battle"]["showQueue"].Bool())queue->showAll(*mobileBuffer);
